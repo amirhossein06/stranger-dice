@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stranger Dice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Vazirmatn:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0709; --surface: #150d11; --surface-2: #1e1117; --line: #3a1b24;
+  --fg: #f4ebe6; --muted: #ab9297; --red: #e5262d; --red-glow: rgba(229, 38, 45, .22);
+  --good: #3ddc97; --warn: #f2b84b; --bad: #ff5a5f; --die: #efe3dc; --pip: #8b1a22;
+  --display: 'Abril Fatface', Georgia, serif;
+  --body: 'Vazirmatn', Tahoma, system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: #0b0709; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; min-height: 100vh; color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.6;
+  background: radial-gradient(120% 55% at 50% -12%, var(--red-glow), transparent 62%) var(--bg);
+  padding-block: 12px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+#app { max-width: 520px; margin-inline: auto; display: flex; flex-direction: column; gap: 12px; }
+button, input, select, textarea { font-family: inherit; font-size: 1rem; touch-action: manipulation; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+h2, h3 { margin: 0; font-weight: 800; }
+h2 { font-size: 1.1rem; } h3 { font-size: 1rem; }
+.muted { color: var(--muted); font-size: .88rem; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.grow { flex: 1; min-width: 0; }
+
+.logo { text-align: center; }
+.logo h1 {
+  margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 8vw, 2.4rem); letter-spacing: .05em;
+  color: #ff4a4f; text-shadow: 0 0 6px rgba(229, 38, 45, .95), 0 0 26px rgba(229, 38, 45, .55); animation: flick 7s infinite;
+}
+.logo p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+@keyframes flick { 0%, 18%, 22%, 62%, 66%, 100% { opacity: 1; } 19%, 21% { opacity: .3; } 63%, 65% { opacity: .55; } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.panel.glow { border-color: var(--red); box-shadow: 0 0 18px var(--red-glow); }
+.btn {
+  min-height: 48px; border-radius: 10px; border: 0; cursor: pointer; padding: 0 16px;
+  background: var(--red); color: #fff; font-weight: 800; box-shadow: 0 0 18px var(--red-glow);
+}
+.btn.block { width: 100%; }
+.btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--fg); box-shadow: none; font-weight: 600; }
+.btn.small { min-height: 38px; padding: 0 12px; font-size: .9rem; }
+.btn:disabled { opacity: .45; cursor: default; box-shadow: none; }
+input[type=text], select, textarea {
+  min-height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); padding: 6px 12px; width: 100%;
+}
+textarea { min-height: 70px; resize: vertical; }
+.pill { border-radius: 999px; padding: 0 10px; font-size: .78rem; font-weight: 800; border: 1px solid currentColor; white-space: nowrap; }
+.good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--good); box-shadow: 0 0 8px var(--good); }
+
+.status { position: sticky; top: 0; z-index: 3; text-align: center; font-size: .8rem; padding: 3px 8px; border-radius: 0 0 8px 8px; background: var(--surface-2); color: var(--muted); }
+.status.off { background: #4a1418; color: #ffd4d6; }
+
+.scene { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: linear-gradient(160deg, rgba(229, 38, 45, .12), var(--surface)); }
+.scene h2 { color: #ff6a6f; margin-bottom: 4px; }
+.scene p { margin: 0; line-height: 1.9; }
+.scene .note { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--warn); }
+
+.prog { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; direction: ltr; }
+.prog i { display: block; height: 100%; background: linear-gradient(90deg, #8b1a22, #ff4a4f); transition: width .5s; }
+
+.board-wrap { height: min(34vh, 260px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 6px; background: var(--surface); }
+.board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; direction: ltr; }
+.cell { position: relative; aspect-ratio: 1; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+.cell .n { position: absolute; top: 1px; inset-inline-start: 3px; font-size: .55rem; color: var(--muted); }
+.cell.seen { background: rgba(229, 38, 45, .16); }
+.cell.fin { border-color: var(--red); } .cell.fin .n, .cell.sta .n { color: var(--bad); font-weight: 800; }
+.cell.here { border-color: var(--fg); background: rgba(229, 38, 45, .35); }
+.cell.here::after {
+  content: ''; position: absolute; inset: 22%; border-radius: 50%; background: #ff4a4f; box-shadow: 0 0 12px #ff4a4f, 0 0 0 2px var(--fg);
+}
+
+.dice { display: flex; gap: 10px; justify-content: center; }
+.die {
+  width: 54px; height: 54px; border-radius: 11px; background: var(--die); padding: 7px; gap: 2px;
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); box-shadow: 0 4px 0 #b9a79e, 0 0 16px var(--red-glow);
+}
+.die i { border-radius: 50%; place-self: center; width: 9px; height: 9px; }
+.die i.on { background: var(--pip); }
+.total { text-align: center; font-size: 1.05rem; } .total b { font-size: 1.5rem; }
+
+.abil { display: flex; flex-direction: column; gap: 2px; text-align: start; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; width: 100%; }
+.abil b { font-size: 1rem; } .abil:active { border-color: var(--red); } .abil:disabled { opacity: .4; cursor: default; }
+.abil.sel { border-color: var(--red); background: var(--red-glow); }
+
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; margin-inline: auto; max-width: 540px; z-index: 10;
+  background: var(--surface-2); border-top: 1px solid var(--red); border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px var(--red-glow);
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  animation: rise .25s ease-out;
+}
+@keyframes rise { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.q-time { font-weight: 800; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 8px 0 12px; }
+.bar i { display: block; height: 100%; background: var(--good); transform-origin: right; }
+.q-text { font-size: 1.2rem; font-weight: 800; line-height: 1.5; margin: 0 0 12px; }
+.opt { min-height: 48px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-align: start; cursor: pointer; width: 100%; margin-bottom: 8px; }
+.opt.pick { border-color: var(--warn); background: rgba(242, 184, 75, .14); }
+.opt.right { border-color: var(--good); background: rgba(61, 220, 151, .14); }
+.opt:disabled { cursor: default; }
+
+.result { text-align: center; padding: 12px; border-radius: 10px; border: 1px solid currentColor; }
+.logbox { max-height: 150px; overflow-y: auto; font-size: .85rem; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+
+.qr { width: 190px; max-width: 60%; margin-inline: auto; border-radius: 8px; overflow: hidden; }
+.qr svg { display: block; width: 100%; height: auto; }
+.code { font-family: var(--display); font-size: 2.2rem; letter-spacing: .25em; text-align: center; color: #ff4a4f; direction: ltr; }
+.link { direction: ltr; text-align: left; word-break: break-all; font-size: .8rem; color: var(--muted); }
+.plist { display: flex; flex-direction: column; gap: 8px; }
+.pitem { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
+.pitem.turn { border-color: var(--red); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chk { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: .82rem; }
+.chk select { min-height: 26px; width: auto; padding: 0 4px; font-size: .8rem; }
+.chk input { width: 18px; height: 18px; }
+details > summary { cursor: pointer; font-weight: 800; }
+.win { position: fixed; inset: 0; z-index: 20; background: rgba(6, 3, 4, .94); display: grid; place-items: center; text-align: center; padding: 24px; }
+.win h2 { font-family: var(--display); font-weight: 400; font-size: 2.4rem; color: #ff4a4f; text-shadow: 0 0 24px rgba(229, 38, 45, .7); }
+@media (prefers-reduced-motion: reduce) { .logo h1, .sheet { animation: none; } .prog i { transition: none; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="story.js"></script>
+<script>
+'use strict';
+/* ====================== ابزارهای کوچک ====================== */
+const SD = window.SD;
+const Q = new URLSearchParams(location.search);
+const AS = Q.get('as') || '';                                   // فقط برای تست چند صفحه در یک مرورگر
+const RELAY = (Q.get('relay') || 'https://ntfy.sh').replace(/\/+$/, '');
+const LIM = { 1: 25, 2: 18, 3: 12 };
+const LVN = { 1: 'آسان', 2: 'متوسط', 3: 'سخت' };
+const $ = id => document.getElementById(id);
+const fa = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const rid = () => Math.random().toString(36).slice(2, 10);
+const rnd = n => Math.floor(Math.random() * n);
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const store = {
+  get(k) { try { return localStorage.getItem(k + AS); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k + AS, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k + AS); } catch (e) {} }
+};
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const diceHtml = d => '<div class="dice">' + d.map(v => '<div class="die">' + Array.from({ length: 9 }, (_, i) => `<i class="${PIPS[v].includes(i) ? 'on' : ''}"></i>`).join('') + '</div>').join('') + '</div>';
+
+/* ====================== QR (نسخه ۱ تا ۵، سطح L) ====================== */
+function qrMatrix(text) {
+  const bytes = [...new TextEncoder().encode(text)];
+  const CAP = [0, 19, 34, 55, 80, 108], ECC = [0, 7, 10, 15, 20, 26];
+  let ver = 1; while (ver < 5 && bytes.length + 2 > CAP[ver]) ver++;
+  if (bytes.length + 2 > CAP[ver]) return null;
+  const size = 17 + 4 * ver, cap = CAP[ver], bits = [];
+  const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+  put(4, 4); put(bytes.length, 8); bytes.forEach(b => put(b, 8));
+  for (let i = 0; i < 4 && bits.length < cap * 8; i++) bits.push(0);
+  while (bits.length % 8) bits.push(0);
+  const data = []; for (let i = 0; i < bits.length; i += 8) { let v = 0; for (let j = 0; j < 8; j++) v = (v << 1) | bits[i + j]; data.push(v); }
+  for (let pad = 0xEC; data.length < cap; pad ^= 0xEC ^ 0x11) data.push(pad);
+  const mul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z; };
+  const deg = ECC[ver]; const div = new Array(deg).fill(0); div[deg - 1] = 1; let root = 1;
+  for (let i = 0; i < deg; i++) { for (let j = 0; j < deg; j++) { div[j] = mul(div[j], root); if (j + 1 < deg) div[j] ^= div[j + 1]; } root = mul(root, 2); }
+  const rem = new Array(deg).fill(0);
+  for (const b of data) { const f = b ^ rem.shift(); rem.push(0); div.forEach((c, i) => { rem[i] ^= mul(c, f); }); }
+  const all = data.concat(rem);
+  const grid = () => Array.from({ length: size }, () => new Array(size).fill(false));
+  const mod = grid(), fn = grid();
+  const setF = (M, x, y, d) => { M[y][x] = d; fn[y][x] = true; };
+  for (let i = 0; i < size; i++) { setF(mod, 6, i, i % 2 === 0); setF(mod, i, 6, i % 2 === 0); }
+  const finder = (cx, cy) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy; if (x >= 0 && x < size && y >= 0 && y < size) setF(mod, x, y, d !== 2 && d !== 4); } };
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  if (ver >= 2) { const c = size - 7; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) setF(mod, c + dx, c + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1); }
+  const fmt = (M, mask) => {
+    const d = (1 << 3) | mask; let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+    const b = ((d << 10) | r) ^ 0x5412, g = i => ((b >>> i) & 1) === 1, s = (x, y, v) => setF(M, x, y, v);
+    for (let i = 0; i <= 5; i++) s(8, i, g(i)); s(8, 7, g(6)); s(8, 8, g(7)); s(7, 8, g(8));
+    for (let i = 9; i < 15; i++) s(14 - i, 8, g(i));
+    for (let i = 0; i < 8; i++) s(size - 1 - i, 8, g(i));
+    for (let i = 8; i < 15; i++) s(8, size - 15 + i, g(i));
+    s(8, size - 8, true);
+  };
+  fmt(mod, 0);
+  let k = 0;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+      const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+      if (!fn[y][x] && k < all.length * 8) { mod[y][x] = ((all[k >>> 3] >>> (7 - (k & 7))) & 1) === 1; k++; }
+    }
+  }
+  const MF = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x, y) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+    (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
+    (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0, (x, y) => (((x + y) % 2) + (x * y) % 3) % 2 === 0];
+  const penalty = M => {
+    let p = 0, dark = 0;
+    for (let a = 0; a < size; a++) for (const rowwise of [true, false]) {
+      let run = 1;
+      for (let b = 1; b < size; b++) {
+        const cur = rowwise ? M[a][b] : M[b][a], prev = rowwise ? M[a][b - 1] : M[b - 1][a];
+        if (cur === prev) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1;
+      }
+    }
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      if (M[y][x]) dark++;
+      if (x + 1 < size && y + 1 < size && M[y][x] === M[y][x + 1] && M[y][x] === M[y + 1][x] && M[y][x] === M[y + 1][x + 1]) p += 3;
+    }
+    return p + (Math.ceil(Math.abs(dark * 20 - size * size * 10) / (size * size)) - 1) * 10;
+  };
+  let best = null, bestP = 1e9;
+  for (let m = 0; m < 8; m++) {
+    const M = mod.map(r => r.slice());
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y][x] && MF[m](x, y)) M[y][x] = !M[y][x];
+    fmt(M, m);
+    const p = penalty(M); if (p < bestP) { bestP = p; best = M; }
+  }
+  return best;
+}
+function qrSvg(text) {
+  const m = qrMatrix(text); if (!m) return '';
+  const n = m.length, b = 4; let d = '';
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (m[y][x]) d += `M${x + b},${y + b}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${n + 2 * b} ${n + 2 * b}" shape-rendering="crispEdges" role="img" aria-label="QR"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
+/* ====================== ارتباط زنده (رله‌ی ntfy) ====================== */
+function Net(room, onmsg, onstat) {
+  const topic = 'sdq-' + room;
+  let ws = null, closed = false, lastId = '', retry = 0, status = '';
+  const seen = new Set(), order = [];
+  const stat = s => { if (s !== status) { status = s; onstat(s); } };
+  function connect() {
+    if (closed) return;
+    let w;
+    try { w = new WebSocket(RELAY.replace(/^http/, 'ws') + '/' + topic + '/ws' + (lastId ? '?since=' + encodeURIComponent(lastId) : '')); } catch (e) { return later(); }
+    ws = w;
+    w.onopen = () => { retry = 0; stat('on'); };
+    w.onmessage = e => {
+      let ev; try { ev = JSON.parse(e.data); } catch (x) { return; }
+      if (ev.event === 'open') { stat('on'); return; }
+      if (ev.event !== 'message') return;
+      if (ev.id) lastId = ev.id;
+      let m; try { m = JSON.parse(ev.message); } catch (x) { return; }
+      if (!m || m.r !== room || seen.has(m.id)) return;
+      seen.add(m.id); order.push(m.id); if (order.length > 500) seen.delete(order.shift());
+      onmsg(m);
+    };
+    w.onclose = () => { if (ws === w) { stat('off'); later(); } };
+    w.onerror = () => { try { w.close(); } catch (x) {} };
+  }
+  function later() { if (!closed) setTimeout(connect, Math.min(8000, 700 * (++retry))); }
+  async function send(m, tries = 3) {
+    m.r = room; m.id = m.id || rid(); seen.add(m.id);
+    for (let i = 0; i < tries; i++) {
+      try { const r = await fetch(RELAY + '/' + topic, { method: 'POST', body: JSON.stringify(m) }); if (r.ok) return true; } catch (e) {}
+      await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
+    stat('err'); return false;
+  }
+  connect();
+  return { send, close() { closed = true; try { ws && ws.close(); } catch (e) {} } };
+}
+
+/* ====================== بخش‌های مشترک: صحنه و مسیر ====================== */
+const sceneOf = id => SD.SCENES[id] || { title: '', text: '' };
+function sceneHtml(st) {
+  const s = sceneOf(st.sc);
+  return `<div class="scene"><h2>${esc(s.title)}</h2><p>${esc(s.text)}</p>${st.note ? `<div class="note">${esc(st.note)}</div>` : ''}</div>`;
+}
+const Board = {
+  N: 0, cells: [],
+  build(el, N) {
+    if (this.N === N && el.firstChild) return;
+    this.N = N; this.cells = []; let h = '';
+    for (let k = 0; k < N; k++) {
+      const r = Math.floor(k / 8), c = k % 8, p = r * 8 + (r % 2 ? 7 - c : c);
+      h += `<div class="cell${p === 0 ? ' sta' : ''}${p === N - 1 ? ' fin' : ''}" data-p="${p}"><span class="n">${p === 0 ? 'شروع' : p === N - 1 ? 'خروج' : fa(p)}</span></div>`;
+    }
+    el.innerHTML = h; el.querySelectorAll('.cell').forEach(c => { this.cells[+c.dataset.p] = c; });
+  },
+  mark(wrap, pos) {
+    this.cells.forEach((c, p) => { c.classList.toggle('seen', p < pos); c.classList.toggle('here', p === pos); });
+    const c = this.cells[pos]; if (c) wrap.scrollTo({ top: Math.max(0, c.offsetTop - wrap.clientHeight / 2), behavior: 'smooth' });
+  }
+};
+function boardBlock(st) {
+  return `<div class="prog" aria-label="پیشروی"><i id="progI" style="width:${Math.round(st.pos / (st.N - 1) * 100)}%"></i></div>
+  <div class="row muted"><span id="progT">خانه‌ی ${fa(st.pos)} از ${fa(st.N - 1)}</span></div>
+  <div class="board-wrap" id="bwrap"><div class="board" id="board"></div></div>`;
+}
+function boardUpdate(st) {
+  const b = $('board'); if (!b) return;
+  const pi = $('progI'), pt = $('progT');
+  if (pi) pi.style.width = Math.round(st.pos / (st.N - 1) * 100) + '%';
+  if (pt) pt.textContent = 'خانه‌ی ' + fa(st.pos) + ' از ' + fa(st.N - 1);
+  Board.build(b, st.N); Board.mark($('bwrap'), st.pos);
+}
+function logHtml(st) { return '<div class="logbox">' + (st.lg || []).slice().reverse().map(t => `<div>• ${esc(t)}</div>`).join('') + '</div>'; }
+const pname = (st, id) => { const p = (st.pl || []).find(x => x.i === id); return p ? p.n : '؟'; };
+const abName = k => (SD.ABILITIES[k] || { name: k }).name;
+
+/* ====================== شروع: انتخاب نقش ====================== */
+const app = $('app');
+let net = null, role = null;
+const head = `<div class="logo"><h1>STRANGER DICE</h1><p>فرار از دنیای وارونه</p></div>`;
+function startScreen() {
+  const room = (Q.get('r') || '').toUpperCase();
+  if (room) return playerStart(room);
+  const saved = store.get('sd-host-room');
+  app.innerHTML = head + `<div class="panel">
+    <h2>گرداننده</h2>
+    <p class="muted">اتاق جدید می‌سازی و بقیه با QR یا کد وارد می‌شوند.</p>
+    <label class="muted">تعداد خانه‌های مسیر
+      <select id="nsel"><option value="40">۴۰ خانه (کوتاه)</option><option value="64" selected>۶۴ خانه</option><option value="80">۸۰ خانه (بلند)</option></select></label>
+    <button class="btn block" id="newRoom" type="button">ساختن اتاق جدید</button>
+    ${saved ? `<button class="btn ghost block" id="resume" type="button">ادامه‌ی اتاق قبلی (${esc(saved)})</button>` : ''}
+  </div>
+  <div class="panel"><h2>بازیکن</h2>
+    <label class="muted" for="joinCode">کد اتاق</label>
+    <input type="text" id="joinCode" maxlength="8" autocapitalize="characters" autocomplete="off" dir="ltr" placeholder="ABCDE">
+    <button class="btn block" id="goJoin" type="button">ادامه</button></div>`;
+  $('newRoom').onclick = () => hostInit(Array.from({ length: 5 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[rnd(31)]).join(''), +$('nsel').value);
+  if (saved) $('resume').onclick = () => hostInit(saved, 0);
+  $('goJoin').onclick = () => { const c = $('joinCode').value.trim().toUpperCase(); if (c) playerStart(c); };
+}
+
+/* ====================== میزبان ====================== */
+let H = null, hNet = null, qTimer = null, advTimer = null, secret = null, hOnline = {}, sendT = null;
+const pidShort = () => rid().slice(0, 6);
+function hostInit(room, N) {
+  role = 'host';
+  const saved = store.get('sd-h-' + room);
+  if (saved) { try { H = JSON.parse(saved); } catch (e) { H = null; } }
+  if (!H) H = { room, N: N || 64, ph: 'lobby', pos: 0, tid: 0, aid: 0, v: 0, turn: null, sc: SD.FIRST_SCENE, note: '', act: null, auto: true, log: [], order: [], pl: {} };
+  if (H.act && H.act.st !== 'r') { H.act = null; H.tid++; }
+  store.set('sd-host-room', H.room);
+  hNet = Net(H.room, hostOnMsg, s => { hStat = s; paintStatus(); });
+  hostSkeleton();
+  hostSave(); sendState();
+  setInterval(() => {                       // وضعیت آنلاین بودن بازیکن‌ها
+    let ch = false; const now = Date.now();
+    H.order.forEach(id => { const on = now - (H.pl[id].seen || 0) < 75000; if (hOnline[id] !== on) { hOnline[id] = on; ch = true; } });
+    if (ch) bump(); else sendState();
+  }, 25000);
+}
+let hStat = '';
+function paintStatus() {
+  const el = $('status'); if (!el) return;
+  const ok = hStat === 'on';
+  el.className = 'status' + (ok ? '' : ' off'); el.hidden = false;
+  el.textContent = ok ? 'متصل به رله' : (hStat === 'err' ? 'ارسال پیام ناموفق بود؛ اینترنت یا رله را بررسی کن' : 'در حال اتصال به رله…');
+}
+function hostSave() { store.set('sd-h-' + H.room, JSON.stringify(H)); }
+function hlog(t) { H.log.push(t); if (H.log.length > 40) H.log.shift(); }
+function pub() {
+  const now = Date.now(), a = H.act;
+  return {
+    v: H.v, ph: H.ph, N: H.N, pos: H.pos, tid: H.tid, turn: H.turn, sc: H.sc, note: H.note, auto: H.auto ? 1 : 0,
+    act: a ? { aid: a.aid, pid: a.pid, ab: a.ab, st: a.st, d: a.d, t: a.t, ms: a.ms, res: a.res } : null,
+    pl: H.order.map(id => { const p = H.pl[id]; return { i: id, n: p.n, l: p.lv, s: p.sk ? 1 : 0, a: p.ab, o: now - (p.seen || 0) < 75000 ? 1 : 0 }; }),
+    lg: H.log.slice(-6)
+  };
+}
+function sendState() { hNet.send({ f: 'h', t: 'st', d: pub() }); }
+function bump() {
+  H.v++; hostSave(); hostRender();
+  clearTimeout(sendT); sendT = setTimeout(sendState, 60);
+}
+function nextTurn(after, same) {
+  clearTimeout(advTimer); H.act = null; H.tid++;
+  if (same && H.pl[same]) { H.turn = same; return; }
+  const ids = H.order, n = ids.length; if (!n) { H.turn = null; return; }
+  let i = after == null ? -1 : ids.indexOf(after);
+  for (let c = 0; c < n * 2; c++) {
+    i = (i + 1) % n; const p = H.pl[ids[i]];
+    if (Date.now() - (p.seen || 0) > 75000) continue;                  // آفلاین
+    if (p.sk) { p.sk = false; hlog(p.n + ' یک دور محروم شد.'); continue; }
+    H.turn = ids[i]; return;
+  }
+  H.turn = null;
+}
+function hostOnMsg(m) {
+  if (m.f === 'h' || !m.f) return;
+  const now = Date.now(); let p = H.pl[m.f];
+  if (m.t === 'join') {
+    const name = String((m.d && m.d.n) || 'بازیکن').slice(0, 14);
+    if (!p) { p = H.pl[m.f] = { n: name, ab: {}, lv: 2, sk: false, seen: now }; H.order.push(m.f); hlog(name + ' وارد شد.'); if (H.ph === 'play' && !H.turn) nextTurn(null); }
+    else { p.n = name; p.seen = now; }
+    return bump();
+  }
+  if (!p) return sendState();
+  p.seen = now;
+  if (m.t === 'hello') return sendState();
+  if (m.t === 'ping') { if (hOnline[m.f] === false) { hOnline[m.f] = true; bump(); } return; }
+  const d = m.d || {};
+  if (H.ph !== 'play') return;
+  if (m.t === 'use') {
+    if (m.f !== H.turn || H.act || d.tid !== H.tid) return;
+    const ab = d.ab || null;
+    if (ab && (!(ab in p.ab) || p.ab[ab] === 0)) return;
+    H.act = { aid: ++H.aid, pid: m.f, ab, st: 'c' }; clearTimeout(advTimer); return bump();
+  }
+  if (m.t === 'roll') {
+    const a = H.act; if (!a || a.st !== 'c' || a.pid !== m.f || d.aid !== a.aid) return;
+    const dice = [1 + rnd(6), 1 + rnd(6), 1 + rnd(6)], total = dice[0] + dice[1] + dice[2];
+    const info = a.ab ? SD.ABILITIES[a.ab] : null;
+    let L = p.lv; if (info && info.type === 'easy') L = Math.max(1, L - 1);
+    let ms = LIM[L] * 1000; if (info && info.type === 'time') ms += info.val * 1000;
+    const q = pickQ(L);
+    secret = { aid: a.aid, correct: q.correct, q, L };
+    a.st = 'q'; a.d = dice; a.t = total; a.ms = ms;
+    hNet.send({ f: 'h', t: 'q', to: m.f, d: { aid: a.aid, text: q.text, opts: q.opts, ms, L } });
+    clearTimeout(qTimer); qTimer = setTimeout(() => resolve(-1), ms + 3000);
+    return bump();
+  }
+  if (m.t === 'ans') {
+    const a = H.act; if (!a || a.st !== 'q' || a.pid !== m.f || d.aid !== a.aid) return;
+    resolve(+d.i);
+  }
+}
+const usedQ = { 1: new Set(), 2: new Set(), 3: new Set() };
+function pickQ(L) {
+  const pool = SD.QUESTIONS[L]; let free = pool.map((_, i) => i).filter(i => !usedQ[L].has(i));
+  if (!free.length) { usedQ[L].clear(); free = pool.map((_, i) => i); }
+  const i = free[rnd(free.length)]; usedQ[L].add(i);
+  const [text, right, wrong] = pool[i], opts = shuffle([right, ...wrong]);
+  return { text, opts, correct: opts.indexOf(right) };
+}
+function resolve(i) {
+  const a = H.act; if (!a || a.st !== 'q' || !secret) return;
+  clearTimeout(qTimer);
+  const p = H.pl[a.pid], info = a.ab ? SD.ABILITIES[a.ab] : null, total = a.t;
+  const ok = i === secret.correct; let steps, txt;
+  if (ok) {
+    steps = total === 11 ? 22 : total;
+    if (info && info.type === 'bonus') steps += info.val;
+    if (info && info.type === 'double') steps *= 2;
+    p.lv = Math.max(1, p.lv - 1);
+    txt = `درست! ${fa(steps)} خانه جلو رفت` + (info ? ` (${info.name})` : '') + '.';
+  } else {
+    steps = total === 11 ? 11 : Math.floor(total / 2);
+    if (!(info && info.type === 'steady')) p.lv = Math.min(3, p.lv + 1);
+    txt = (i === -1 ? 'وقت تمام شد! ' : 'اشتباه بود! ') + `فقط ${fa(steps)} خانه جلو رفت` + (info && info.type === 'steady' ? ` (${info.name}: سطح سخت‌تر نشد)` : '') + '.';
+  }
+  if (a.ab && typeof p.ab[a.ab] === 'number') { p.ab[a.ab]--; if (p.ab[a.ab] <= 0) p.ab[a.ab] = 0; }
+  if (total === 3) { p.sk = true; txt += ' عدد ۳: نوبت بعدی‌اش را از دست می‌دهد.'; }
+  const extra = total === 8; if (extra) txt += ' عدد ۸: یک بار دیگر تاس می‌اندازد.';
+  H.pos = Math.min(H.N - 1, H.pos + steps);
+  a.st = 'r'; a.res = { ok: ok ? 1 : 0, steps, txt, x: extra ? 1 : 0 };
+  hlog(`${p.n}: ${txt}`); secret = null;
+  if (H.pos >= H.N - 1) { H.ph = 'end'; hlog('مهره به خروج رسید!'); }
+  else if (H.auto) advTimer = setTimeout(() => { nextTurn(a.pid, extra ? a.pid : null); bump(); }, 6500);
+  bump();
+}
+
+/* ---------- رابط میزبان ---------- */
+function joinUrl() { return location.origin === 'null' ? location.href.split('?')[0] + '?r=' + H.room : location.origin + location.pathname + '?r=' + H.room; }
+function hostSkeleton() {
+  app.innerHTML = `<div class="status" id="status">در حال اتصال به رله…</div>${head}
+  <div class="panel glow" id="hhead"></div>
+  <div id="hscene"></div>
+  <div class="panel" id="hturn"></div>
+  <div class="panel" id="hact"></div>
+  <div class="panel" id="hpawn"></div>
+  <div id="hboardbox" class="panel"></div>
+  <div class="panel"><h2>رویدادها</h2><div id="hlog"></div></div>
+  <div class="panel"><details id="hplayers" open><summary>بازیکن‌ها و توانایی‌ها</summary><div id="hpl" class="plist" style="margin-top:10px"></div></details></div>
+  <div class="panel row" id="hmisc"></div>`;
+  app.addEventListener('click', hostClick); app.addEventListener('change', hostChange);
+  paintStatus(); hostRender(true);
+}
+function hostRender(first) {
+  if (role !== 'host') return;
+  const st = pub(), url = joinUrl(), play = H.ph === 'play';
+  $('hhead').innerHTML = H.ph === 'lobby' ? `
+    <h2>اتاق ${fa(H.pl ? H.order.length : 0)} نفره</h2>
+    <div class="code" id="roomCode">${esc(H.room)}</div>
+    <div class="qr">${qrSvg(url)}</div>
+    <div class="link" id="joinLink">${esc(url)}</div>
+    <div class="row"><button class="btn ghost small" data-h="copy" type="button">کپی لینک</button>
+    <button class="btn ghost small" data-h="auto" type="button">توانایی خودکار</button>
+    <button class="btn small grow" data-h="start" type="button" ${H.order.length ? '' : 'disabled'}>شروع بازی</button></div>
+    <p class="muted">بازیکن‌ها QR را اسکن می‌کنند یا کد ${esc(H.room)} را وارد می‌کنند. وقتی همه آمدند، شروع کن.</p>` :
+    `<div class="row"><b>کد اتاق: <span dir="ltr">${esc(H.room)}</span></b><span class="muted">${fa(H.order.filter(id => st.pl.find(p => p.i === id).o).length)} از ${fa(H.order.length)} آنلاین</span></div>`;
+  $('hscene').innerHTML = play || H.ph === 'end' ? sceneBlockHost(st) : '';
+  $('hturn').innerHTML = play ? turnBlockHost(st) : '';
+  $('hact').innerHTML = play || H.ph === 'end' ? actBlockHost(st) : '';
+  $('hpawn').innerHTML = play ? `<h2>مهره</h2><div class="row"><button class="btn ghost small" data-h="pos:-5" type="button">−۵</button><button class="btn ghost small" data-h="pos:-1" type="button">−۱</button><span class="grow" style="text-align:center">خانه‌ی ${fa(H.pos)} از ${fa(H.N - 1)}</span><button class="btn ghost small" data-h="pos:1" type="button">+۱</button><button class="btn ghost small" data-h="pos:5" type="button">+۵</button></div>` : '';
+  const bb = $('hboardbox');
+  if (H.ph === 'lobby') bb.hidden = true; else { bb.hidden = false; if (!bb.firstChild || !$('board')) { bb.innerHTML = boardBlock(st); Board.N = 0; } else { $('progI').style.width = Math.round(st.pos / (st.N - 1) * 100) + '%'; } boardUpdate(st); }
+  $('hlog').innerHTML = logHtml(st);
+  $('hpl').innerHTML = H.order.map(id => playerRowHost(id, st)).join('') || '<p class="muted">هنوز کسی وارد نشده است.</p>';
+  $('hmisc').innerHTML = `<button class="btn ghost small" data-h="lobby" type="button">برگشت به لابی</button><button class="btn ghost small" data-h="end" type="button">پایان بازی</button><button class="btn ghost small" data-h="reset" type="button">اتاق تازه</button>`;
+  if (hostRender.lastPh !== H.ph) { $('hplayers').open = H.ph === 'lobby'; hostRender.lastPh = H.ph; }
+}
+function sceneBlockHost(st) {
+  const s = sceneOf(H.sc), keys = Object.keys(SD.SCENES);
+  return sceneHtml(st) + `<div class="panel" style="margin-top:10px">
+    ${s.gm ? `<div class="warn">یادداشت گرداننده: ${esc(s.gm)}</div>` : ''}
+    <div class="chips">${(s.choices || []).map((c, i) => `<button class="btn small" data-h="goto:${esc(c.to)}" type="button">${esc(c.label)}</button>`).join('') || '<span class="muted">این صحنه گزینه‌ی بعدی ندارد.</span>'}</div>
+    <label class="muted" for="sceneSel">صحنه‌ی دلخواه</label>
+    <select id="sceneSel" data-hc="scene">${keys.map(k => `<option value="${esc(k)}" ${k === H.sc ? 'selected' : ''}>${esc(SD.SCENES[k].title)}</option>`).join('')}</select>
+    <label class="muted" for="noteTxt">پیام لحظه‌ای برای همه (روایت)</label>
+    <textarea id="noteTxt" maxlength="300" placeholder="مثلاً: دموگورگن جلوی تو ایستاده…">${esc(H.note)}</textarea>
+    <div class="row"><button class="btn small" data-h="note" type="button">نمایش برای همه</button><button class="btn ghost small" data-h="clearnote" type="button">پاک کردن</button></div></div>`;
+}
+function turnBlockHost(st) {
+  const cur = st.turn ? pname(st, st.turn) : 'هیچ‌کس';
+  return `<h2>نوبت: ${esc(cur)}</h2>
+  <div class="row"><select id="giveTurn" data-hc="turn" class="grow"><option value="">نوبت را بده به…</option>${st.pl.map(p => `<option value="${p.i}">${esc(p.n)}${p.o ? '' : ' (آفلاین)'}</option>`).join('')}</select>
+  <button class="btn ghost small" data-h="skip" type="button">رد کردن نوبت</button></div>
+  <label class="row"><input type="checkbox" id="autoChk" data-hc="auto" ${H.auto ? 'checked' : ''} style="width:20px;height:20px"> نوبت بعدی خودکار (۶ ثانیه بعد از نتیجه)</label>`;
+}
+function actBlockHost(st) {
+  const a = H.act; if (H.ph === 'end') return '<h2>بازی تمام شد</h2><p>مهره به خروج رسید.</p>';
+  if (!a) return '<h2>اکشن فعلی</h2><p class="muted">منتظر انتخاب بازیکن…</p>';
+  let h = `<h2>اکشن: ${esc(pname(st, a.pid))}${a.ab ? ' · ' + esc(abName(a.ab)) : ' · حرکت ساده'}</h2>`;
+  if (a.d) h += diceHtml(a.d) + `<div class="total">مجموع: <b>${fa(a.t)}</b></div>`;
+  if (a.st === 'c') h += '<p class="muted">منتظر انداختن تاس…</p>';
+  if (a.st === 'q' && secret) h += `<div><b>سوال (فقط تو جواب را می‌بینی):</b><br>${esc(secret.q.text)}<br>${secret.q.opts.map((o, i) => `<span class="${i === secret.correct ? 'good' : 'muted'}">${i === secret.correct ? '✔ ' : '• '}${esc(o)}</span>`).join('<br>')}</div>`;
+  if (a.st === 'r') h += `<div class="result ${a.res.ok ? 'good' : 'bad'}">${esc(a.res.txt)}</div><button class="btn small" data-h="next" type="button">نوبت بعدی</button>`;
+  return h;
+}
+function playerRowHost(id, st) {
+  const p = H.pl[id], me = st.pl.find(x => x.i === id);
+  return `<div class="pitem${H.turn === id ? ' turn' : ''}"><div class="row"><span class="dot${me.o ? ' on' : ''}"></span><b class="grow">${esc(p.n)}</b><span class="pill ${p.lv === 1 ? 'good' : p.lv === 2 ? 'warn' : 'bad'}">${LVN[p.lv]}</span>${p.sk ? '<span class="pill bad">محروم</span>' : ''}<button class="btn ghost small" data-h="kick:${id}" type="button">حذف</button></div>
+  <div class="chips">${Object.keys(SD.ABILITIES).map(k => {
+    const has = k in p.ab, u = p.ab[k];
+    return `<label class="chk"><input type="checkbox" data-hc="ab" data-pid="${id}" data-k="${k}" ${has ? 'checked' : ''}> ${esc(SD.ABILITIES[k].name)}${has ? `<select data-hc="uses" data-pid="${id}" data-k="${k}" aria-label="تعداد دفعات"><option value="" ${u == null ? 'selected' : ''}>نامحدود</option>${[1, 2, 3].map(n => `<option value="${n}" ${u === n ? 'selected' : ''}>${fa(n)} بار</option>`).join('')}</select>${u === 0 ? '<span class="bad">تمام</span>' : ''}` : ''}</label>`;
+  }).join('')}</div></div>`;
+}
+function hostClick(e) {
+  const b = e.target.closest('[data-h]'); if (!b || role !== 'host') return;
+  const [k, v] = b.dataset.h.split(':');
+  if (k === 'copy') { const t = joinUrl(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'کپی شد'; }, () => { b.textContent = 'لینک را دستی کپی کن'; }); return; }
+  if (k === 'auto') { H.order.forEach(id => { const ks = shuffle(Object.keys(SD.ABILITIES)).slice(0, 2); H.pl[id].ab = {}; ks.forEach(x => { H.pl[id].ab[x] = null; }); }); return bump(); }
+  if (k === 'start') { H.ph = 'play'; H.sc = SD.FIRST_SCENE; H.pos = 0; hlog('بازی شروع شد.'); nextTurn(null); return bump(); }
+  if (k === 'goto') { H.sc = v; H.note = ''; hlog('صحنه: ' + sceneOf(v).title); return bump(); }
+  if (k === 'note') { H.note = ($('noteTxt').value || '').slice(0, 300); return bump(); }
+  if (k === 'clearnote') { H.note = ''; return bump(); }
+  if (k === 'pos') { H.pos = Math.max(0, Math.min(H.N - 1, H.pos + +v)); hlog('مهره دستی جابه‌جا شد.'); if (H.pos >= H.N - 1) H.ph = 'end'; return bump(); }
+  if (k === 'skip' || k === 'next') { nextTurn(H.turn); return bump(); }
+  if (k === 'kick') { delete H.pl[v]; H.order = H.order.filter(x => x !== v); if (H.turn === v) nextTurn(null); return bump(); }
+  if (k === 'lobby') { H.ph = 'lobby'; H.act = null; clearTimeout(advTimer); clearTimeout(qTimer); return bump(); }
+  if (k === 'end') { H.ph = 'end'; H.act = null; return bump(); }
+  if (k === 'reset') { if (b.dataset.sure) { store.del('sd-h-' + H.room); store.del('sd-host-room'); location.href = location.pathname; } else { b.dataset.sure = 1; b.textContent = 'مطمئنی؟ دوباره بزن'; } }
+}
+function hostChange(e) {
+  const t = e.target, k = t.dataset.hc; if (!k || role !== 'host') return;
+  if (k === 'scene') { H.sc = t.value; H.note = ''; return bump(); }
+  if (k === 'turn') { if (t.value) { clearTimeout(advTimer); H.act = null; H.tid++; H.turn = t.value; bump(); } return; }
+  if (k === 'auto') { H.auto = t.checked; return bump(); }
+  const p = H.pl[t.dataset.pid]; if (!p) return;
+  if (k === 'ab') { if (t.checked) p.ab[t.dataset.k] = null; else delete p.ab[t.dataset.k]; return bump(); }
+  if (k === 'uses') { p.ab[t.dataset.k] = t.value === '' ? null : +t.value; return bump(); }
+}
+
+/* ====================== بازیکن ====================== */
+let me = null, PS = null, qmsg = null, lastHost = 0, qTick = null, joined = false;
+function playerStart(room) {
+  role = 'player';
+  let pid = store.get('sd-pid'); if (!pid) { pid = pidShort(); store.set('sd-pid', pid); }
+  me = { room, pid, name: store.get('sd-name') || '' };
+  app.innerHTML = `${head}<div class="panel"><h2>ورود به اتاق <span dir="ltr">${esc(room)}</span></h2>
+    <label class="muted" for="pname">اسم تو</label>
+    <input type="text" id="pname" maxlength="14" autocomplete="off" value="${esc(me.name)}" placeholder="مثلاً داستین">
+    <button class="btn block" id="doJoin" type="button">ورود</button></div>`;
+  $('doJoin').onclick = () => { const n = $('pname').value.trim(); if (!n) return $('pname').focus(); me.name = n; store.set('sd-name', n); playerGo(); };
+  if (me.name && Q.get('auto') !== '0' && store.get('sd-joined-' + room)) playerGo();
+}
+function playerGo() {
+  store.set('sd-joined-' + me.room, '1');
+  app.innerHTML = `<div class="status" id="status">در حال اتصال به رله…</div>${head}
+  <div id="pwait" class="panel"><h2>در حال پیدا کردن میزبان…</h2><p class="muted">اگر چند ثانیه طول کشید، کد اتاق و اینترنت را بررسی کن.</p></div>
+  <div id="pgame" hidden>
+    <div id="pscene"></div>
+    <div class="panel" style="margin-top:12px" id="pboardbox"></div>
+    <div class="panel" style="margin-top:12px" id="paction"></div>
+    <div class="panel" style="margin-top:12px"><h3>رویدادها</h3><div id="plog"></div></div>
+  </div>
+  <div class="sheet" id="psheet" hidden></div>
+  <div class="win" id="pend" hidden><div><h2>فرار کردید!</h2><p>مهره به خروج رسید.</p></div></div>`;
+  net = Net(me.room, playerOnMsg, s => {
+    const el = $('status'); if (!el) return; el.className = 'status' + (s === 'on' ? '' : ' off');
+    el.textContent = s === 'on' ? 'متصل' : (s === 'err' ? 'ارسال پیام ناموفق بود' : 'در حال اتصال…');
+    if (s === 'on') { net.send({ f: me.pid, t: 'join', d: { n: me.name } }); }
+  });
+  net.send({ f: me.pid, t: 'join', d: { n: me.name } });
+  setInterval(() => net.send({ f: me.pid, t: 'ping' }, 1), 30000);
+  setInterval(() => { const el = $('status'); if (el && lastHost && Date.now() - lastHost > 80000) { el.className = 'status off'; el.textContent = 'میزبان پاسخ نمی‌دهد'; } }, 5000);
+  app.addEventListener('click', playerClick);
+}
+function playerOnMsg(m) {
+  if (m.f !== 'h') return;
+  lastHost = Date.now();
+  if (m.t === 'q' && m.to === me.pid) { qmsg = Object.assign({ at: Date.now(), pick: -1 }, m.d); return paint(); }
+  if (m.t === 'st') { if (!PS || m.d.v >= PS.v) { PS = m.d; paint(); } }
+}
+function paint() {
+  const st = PS; if (!st) return;
+  const mine = st.pl.find(p => p.i === me.pid);
+  if (!mine) { net.send({ f: me.pid, t: 'join', d: { n: me.name } }); return; }
+  $('pwait').hidden = st.ph !== 'lobby'; $('pgame').hidden = st.ph === 'lobby';
+  if (st.ph === 'lobby') {
+    $('pwait').innerHTML = `<h2>منتظر شروع بازی</h2><p class="muted">میزبان وقتی همه آمدند بازی را شروع می‌کند.</p>
+      <div class="chips">${st.pl.map(p => `<span class="chk"><span class="dot${p.o ? ' on' : ''}"></span>${esc(p.n)}${p.i === me.pid ? ' (تو)' : ''}</span>`).join('')}</div>
+      <h3>توانایی‌های تو</h3>${abilList(mine, false)}`;
+    return;
+  }
+  $('pscene').innerHTML = sceneHtml(st);
+  const bb = $('pboardbox'); if (!$('board')) { bb.innerHTML = boardBlock(st); Board.N = 0; } else $('progI').style.width = Math.round(st.pos / (st.N - 1) * 100) + '%';
+  boardUpdate(st); $('plog').innerHTML = logHtml(st);
+  $('pend').hidden = st.ph !== 'end';
+  const a = st.act, myTurn = st.turn === me.pid, el = $('paction'), sheet = $('psheet');
+  let h = '';
+  if (a && a.st === 'q' && a.pid === me.pid && qmsg && qmsg.aid === a.aid) {                  // سوال خصوصی
+    if (qmsg.shownAid !== a.aid) { qmsg.shownAid = a.aid; startQuestion(); }
+    h = `<h2>تاس تو</h2>${diceHtml(a.d)}<div class="total">مجموع: <b>${fa(a.t)}</b></div>`;
+  } else {
+    sheet.hidden = true; clearInterval(qTick);
+    if (a && a.d) h += diceHtml(a.d) + `<div class="total">مجموع: <b>${fa(a.t)}</b></div>`;
+    if (a && a.st === 'r') h += `<div class="result ${a.res.ok ? 'good' : 'bad'}">${esc(pname(st, a.pid))}: ${esc(a.res.txt)}</div>`;
+    else if (a && a.st === 'q') h += `<p class="muted">${esc(pname(st, a.pid))} در حال جواب‌دادن به سوال است…</p>`;
+    else if (a && a.st === 'c' && a.pid === me.pid) h += `<h2>${a.ab ? esc(abName(a.ab)) : 'حرکت ساده'}</h2><button class="btn block" data-p="roll" type="button">تاس بنداز</button>`;
+    else if (a && a.st === 'c') h += `<p class="muted">${esc(pname(st, a.pid))} ${a.ab ? 'توانایی «' + esc(abName(a.ab)) + '» را انتخاب کرد' : 'حرکت ساده را انتخاب کرد'}…</p>`;
+    else if (!a && myTurn && st.ph === 'play') h += `<h2>نوبت توست!</h2><p class="muted">یک توانایی انتخاب کن، بعد تاس بینداز. اگر به سوال درست جواب بدهی، اثرش فعال می‌شود.</p>${abilList(mine, true)}<button class="abil" data-p="use:" type="button"><b>حرکت ساده</b><span class="muted">بدون توانایی</span></button>`;
+    else if (!a && st.ph === 'play') h += `<p class="muted">نوبت ${esc(st.turn ? pname(st, st.turn) : '؟')} است.</p>` + (mine.s ? '<p class="bad">یک دور محروم هستی.</p>' : '');
+    if (st.ph === 'end') h += '<h2>بازی تمام شد</h2>';
+    if (!(a && a.st === 'r') && !myTurn && st.ph === 'play') h += `<h3>توانایی‌های تو</h3>${abilList(mine, false)}`;
+  }
+  el.innerHTML = h;
+}
+function abilList(mine, clickable) {
+  const keys = Object.keys(mine.a || {});
+  if (!keys.length) return '<p class="muted">هنوز توانایی‌ای نداری. از میزبان بخواه.</p>';
+  return keys.map(k => { const i = SD.ABILITIES[k] || { name: k, desc: '' }, u = mine.a[k]; const dead = u === 0;
+    return `<button class="abil" ${clickable && !dead ? `data-p="use:${esc(k)}"` : 'disabled'} type="button"><b>${esc(i.name)}</b><span class="muted">${esc(i.desc)} ${u == null ? '' : dead ? '(تمام شد)' : '(' + fa(u) + ' بار)'}</span></button>`; }).join('');
+}
+function startQuestion() {
+  const sh = $('psheet'), q = qmsg; sh.hidden = false; clearInterval(qTick);
+  sh.innerHTML = `<div class="row"><span class="pill ${q.L === 1 ? 'good' : q.L === 2 ? 'warn' : 'bad'}">${LVN[q.L]}</span><span class="q-time grow" style="text-align:left" id="qt"></span></div>
+  <div class="bar"><i id="qb"></i></div><p class="q-text">${esc(q.text)}</p>
+  ${q.opts.map((o, i) => `<button class="opt" data-p="ans:${i}" type="button">${esc(o)}</button>`).join('')}`;
+  qTick = setInterval(() => {
+    const left = Math.max(0, q.ms - (Date.now() - q.at)), qt = $('qt'), qb = $('qb'); if (!qt) return clearInterval(qTick);
+    qt.textContent = fa(Math.ceil(left / 1000)); qb.style.transform = `scaleX(${left / q.ms})`;
+    if (left <= 0) { clearInterval(qTick); sh.querySelectorAll('.opt').forEach(b => { b.disabled = true; }); }
+  }, 150);
+}
+function playerClick(e) {
+  const b = e.target.closest('[data-p]'); if (!b || role !== 'player' || !PS) return;
+  const [k, v] = b.dataset.p.split(':'), st = PS, a = st.act;
+  if (k === 'use' && !a && st.turn === me.pid) { buzz(15); net.send({ f: me.pid, t: 'use', d: { tid: st.tid, ab: v || null } }); }
+  if (k === 'roll' && a && a.st === 'c' && a.pid === me.pid) { buzz(25); b.disabled = true; net.send({ f: me.pid, t: 'roll', d: { aid: a.aid } }); }
+  if (k === 'ans' && a && a.st === 'q' && qmsg && qmsg.aid === a.aid && qmsg.pick < 0) {
+    qmsg.pick = +v; b.classList.add('pick'); $('psheet').querySelectorAll('.opt').forEach(x => { x.disabled = true; });
+    net.send({ f: me.pid, t: 'ans', d: { aid: a.aid, i: +v } });
+  }
+}
+
+startScreen();
+</script>
+</body>
+</html>
