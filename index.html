@@ -435,6 +435,7 @@ function pub() {
     lg: H.log.slice(-6)
   };
 }
+setInterval(() => { try { if (typeof hNet !== 'undefined' && hNet && H && H.room) sendState(); } catch (e) {} }, 5000);
 function sendState() { hNet.send({ f: 'h', t: 'st', d: pub() }); }
 function bump() {
   H.v++; hostSave(); hostRender();
@@ -662,6 +663,7 @@ function playerGo() {
     if (more && net) { net.send({ f: me.pid, t: 'join', d: { n: me.name } }); }
   });
   net.send({ f: me.pid, t: 'join', d: { n: me.name } });
+  setInterval(() => { if (!PS) net.send({ f: me.pid, t: 'join', d: { n: me.name } }, 1); }, 3000);
   setInterval(() => net.send({ f: me.pid, t: 'ping' }, 1), 30000);
   setInterval(() => { const el = $('status'); if (el && lastHost && Date.now() - lastHost > 80000) { el.className = 'status off'; el.textContent = 'میزبان پاسخ نمی‌دهد'; } }, 5000);
   app.addEventListener('click', playerClick);
