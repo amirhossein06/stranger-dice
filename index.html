@@ -238,42 +238,102 @@ function qrSvg(text) {
   return `<svg viewBox="0 0 ${n + 2 * b} ${n + 2 * b}" shape-rendering="crispEdges" role="img" aria-label="QR"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
 
-/* ====================== ارتباط زنده (رله‌ی ntfy) ====================== */
-function Net(room, onmsg, onstat) {
-  const topic = 'sdq-' + room;
-  let ws = null, closed = false, lastId = '', retry = 0, status = '';
-  const seen = new Set(), order = [];
-  const stat = s => { if (s !== status) { status = s; onstat(s); } };
+/* ====================== ارتباط زنده (چند رله‌ی هم‌زمان) ====================== */
+const RELAYS = [
+  { n: 'ntfy', k: 'ntfy', u: RELAY },
+  { n: 'HiveMQ', k: 'mqtt', u: 'wss://broker.hivemq.com:8884/mqtt' },
+  { n: 'EMQX', k: 'mqtt', u: 'wss://broker.emqx.io:8084/mqtt' },
+  { n: 'Mosquitto', k: 'mqtt', u: 'wss://test.mosquitto.org:8081' }
+];
+const relayLine = st => RELAYS.filter(r => r.n in st).map(r => r.n + ' ' + ({ ok: '✓', fail: '✗', wait: '…' }[st[r.n]] || '…')).join(' · ');
+const okCount = st => Object.values(st || {}).filter(x => x === 'ok').length;
+const statText = (s, d) => (s === 'on' ? 'متصل' : s === 'err' ? 'ارسال پیام ناموفق بود' : 'در حال اتصال') + ' · ' + relayLine(d || {});
+
+function ntfyConn(def, topic, onData, onSt) {
+  let ws = null, closed = false, lastId = '', retry = 0;
   function connect() {
-    if (closed) return;
-    let w;
-    try { w = new WebSocket(RELAY.replace(/^http/, 'ws') + '/' + topic + '/ws' + (lastId ? '?since=' + encodeURIComponent(lastId) : '')); } catch (e) { return later(); }
+    if (closed) return; onSt('wait'); let w;
+    try { w = new WebSocket(def.u.replace(/^http/, 'ws') + '/' + topic + '/ws' + (lastId ? '?since=' + encodeURIComponent(lastId) : '')); } catch (e) { return later(); }
     ws = w;
-    w.onopen = () => { retry = 0; stat('on'); };
     w.onmessage = e => {
       let ev; try { ev = JSON.parse(e.data); } catch (x) { return; }
-      if (ev.event === 'open') { stat('on'); return; }
+      if (ev.event === 'open') { retry = 0; onSt('ok'); return; }
       if (ev.event !== 'message') return;
       if (ev.id) lastId = ev.id;
-      let m; try { m = JSON.parse(ev.message); } catch (x) { return; }
-      if (!m || m.r !== room || seen.has(m.id)) return;
-      seen.add(m.id); order.push(m.id); if (order.length > 500) seen.delete(order.shift());
-      onmsg(m);
+      onData(ev.message);
     };
-    w.onclose = () => { if (ws === w) { stat('off'); later(); } };
+    w.onclose = () => { if (ws === w) { onSt('fail'); later(); } };
     w.onerror = () => { try { w.close(); } catch (x) {} };
   }
   function later() { if (!closed) setTimeout(connect, Math.min(8000, 700 * (++retry))); }
-  async function send(m, tries = 3) {
-    m.r = room; m.id = m.id || rid(); seen.add(m.id);
-    for (let i = 0; i < tries; i++) {
-      try { const r = await fetch(RELAY + '/' + topic, { method: 'POST', body: JSON.stringify(m) }); if (r.ok) return true; } catch (e) {}
-      await new Promise(r => setTimeout(r, 800 * (i + 1)));
-    }
-    stat('err'); return false;
-  }
+  async function send(text) { try { const r = await fetch(def.u + '/' + topic, { method: 'POST', body: text }); return r.ok; } catch (e) { return false; } }
   connect();
   return { send, close() { closed = true; try { ws && ws.close(); } catch (e) {} } };
+}
+
+function mqttConn(def, topic, onData, onSt) {
+  let ws = null, closed = false, retry = 0, buf = new Uint8Array(0), ping = null, ok = false;
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const str = s => { const b = enc.encode(s); return [b.length >> 8, b.length & 255, ...b]; };
+  const rl = n => { const o = []; do { let d = n % 128; n = Math.floor(n / 128); if (n > 0) d |= 128; o.push(d); } while (n > 0); return o; };
+  const pkt = (h, body) => Uint8Array.from([h, ...rl(body.length), ...body]);
+  function connect() {
+    if (closed) return; onSt('wait'); ok = false; let w;
+    try { w = new WebSocket(def.u, 'mqtt'); } catch (e) { return later(); }
+    ws = w; w.binaryType = 'arraybuffer'; buf = new Uint8Array(0);
+    w.onopen = () => { w.send(pkt(0x10, [0, 4, 77, 81, 84, 84, 4, 2, 0, 30, ...str('sd' + rid())])); };
+    w.onmessage = e => {
+      if (!(e.data instanceof ArrayBuffer)) return;
+      const a = new Uint8Array(e.data), nb = new Uint8Array(buf.length + a.length); nb.set(buf); nb.set(a, buf.length); buf = nb; parse(w);
+    };
+    w.onclose = () => { if (ws === w) { ok = false; clearInterval(ping); onSt('fail'); later(); } };
+    w.onerror = () => { try { w.close(); } catch (x) {} };
+  }
+  function parse(w) {
+    while (buf.length >= 2) {
+      let i = 1, mul = 1, len = 0, b;
+      do { if (i >= buf.length) return; b = buf[i++]; len += (b & 127) * mul; mul *= 128; } while (b & 128);
+      if (buf.length < i + len) return;
+      const h = buf[0], t = h >> 4, body = buf.slice(i, i + len); buf = buf.slice(i + len);
+      if (t === 2) { if (body[1] === 0) w.send(pkt(0x82, [0, 1, ...str(topic), 0])); else { try { w.close(); } catch (x) {} } }
+      else if (t === 9) {
+        if (body[2] === 0x80) { try { w.close(); } catch (x) {} return; }
+        ok = true; retry = 0; onSt('ok'); clearInterval(ping); ping = setInterval(() => { try { w.send(Uint8Array.of(0xC0, 0)); } catch (x) {} }, 20000);
+      } else if (t === 3) {
+        const tl = (body[0] << 8) | body[1], qos = (h >> 1) & 3;
+        onData(dec.decode(body.slice(2 + tl + (qos ? 2 : 0))));
+      }
+    }
+  }
+  function later() { if (!closed) setTimeout(connect, Math.min(10000, 900 * (++retry))); }
+  function send(text) { if (!ok || !ws || ws.readyState !== 1) return false; try { ws.send(pkt(0x30, [...str(topic), ...enc.encode(text)])); return true; } catch (e) { return false; } }
+  connect();
+  return { send, close() { closed = true; clearInterval(ping); try { ws && ws.close(); } catch (e) {} } };
+}
+
+function Net(room, onmsg, onstat) {
+  const tN = 'sdq-' + room, tM = 'strangerdice/v1/' + room;
+  const only = (Q.get('only') || '').toLowerCase();
+  const defs = RELAYS.filter(r => !only || r.k === only || r.n.toLowerCase() === only);
+  const st = {}, seen = new Set(), order = []; let failed = false;
+  const report = () => onstat(okCount(st) ? 'on' : failed ? 'err' : 'off', st);
+  const onData = text => {
+    let m; try { m = JSON.parse(text); } catch (x) { return; }
+    if (!m || m.r !== room || seen.has(m.id)) return;
+    seen.add(m.id); order.push(m.id); if (order.length > 500) seen.delete(order.shift());
+    onmsg(m);
+  };
+  const conns = defs.map(d => (d.k === 'ntfy' ? ntfyConn : mqttConn)(d, d.k === 'ntfy' ? tN : tM, onData, s => { st[d.n] = s; report(); }));
+  async function send(m, tries = 3) {
+    m.r = room; m.id = m.id || rid(); seen.add(m.id); const text = JSON.stringify(m);
+    for (let i = 0; i < tries; i++) {
+      const res = await Promise.all(conns.map(c => c.send(text)));
+      if (res.some(Boolean)) { if (failed) { failed = false; report(); } return true; }
+      await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
+    failed = true; report(); return false;
+  }
+  return { send, close() { conns.forEach(c => c.close()); } };
 }
 
 /* ====================== بخش‌های مشترک: صحنه و مسیر ====================== */
@@ -349,7 +409,7 @@ function hostInit(room, N) {
   if (!H) H = { room, N: N || 64, ph: 'lobby', pos: 0, tid: 0, aid: 0, v: 0, turn: null, sc: SD.FIRST_SCENE, note: '', act: null, auto: true, log: [], order: [], pl: {} };
   if (H.act && H.act.st !== 'r') { H.act = null; H.tid++; }
   store.set('sd-host-room', H.room);
-  hNet = Net(H.room, hostOnMsg, s => { hStat = s; paintStatus(); });
+  hNet = Net(H.room, hostOnMsg, (s, d) => { const more = okCount(d) > hOk; hOk = okCount(d); hStat = s; hDet = d; paintStatus(); if (more && hNet) sendState(); });
   hostSkeleton();
   hostSave(); sendState();
   setInterval(() => {                       // وضعیت آنلاین بودن بازیکن‌ها
@@ -358,12 +418,11 @@ function hostInit(room, N) {
     if (ch) bump(); else sendState();
   }, 25000);
 }
-let hStat = '';
+let hStat = '', hDet = {}, hOk = 0;
 function paintStatus() {
   const el = $('status'); if (!el) return;
-  const ok = hStat === 'on';
-  el.className = 'status' + (ok ? '' : ' off'); el.hidden = false;
-  el.textContent = ok ? 'متصل به رله' : (hStat === 'err' ? 'ارسال پیام ناموفق بود؛ اینترنت یا رله را بررسی کن' : 'در حال اتصال به رله…');
+  el.className = 'status' + (hStat === 'on' ? '' : ' off'); el.hidden = false;
+  el.textContent = statText(hStat, hDet);
 }
 function hostSave() { store.set('sd-h-' + H.room, JSON.stringify(H)); }
 function hlog(t) { H.log.push(t); if (H.log.length > 40) H.log.shift(); }
@@ -586,7 +645,7 @@ function playerStart(room) {
 function playerGo() {
   store.set('sd-joined-' + me.room, '1');
   app.innerHTML = `<div class="status" id="status">در حال اتصال به رله…</div>${head}
-  <div id="pwait" class="panel"><h2>در حال پیدا کردن میزبان…</h2><p class="muted">اگر چند ثانیه طول کشید، کد اتاق و اینترنت را بررسی کن.</p></div>
+  <div id="pwait" class="panel"><h2>در حال پیدا کردن میزبان…</h2><p class="muted">اگر چند ثانیه طول کشید، کد اتاق را بررسی کن و مطمئن شو صفحه‌ی گرداننده باز است.</p><p class="muted" dir="ltr" id="pdiag"></p></div>
   <div id="pgame" hidden>
     <div id="pscene"></div>
     <div class="panel" style="margin-top:12px" id="pboardbox"></div>
@@ -595,10 +654,12 @@ function playerGo() {
   </div>
   <div class="sheet" id="psheet" hidden></div>
   <div class="win" id="pend" hidden><div><h2>فرار کردید!</h2><p>مهره به خروج رسید.</p></div></div>`;
-  net = Net(me.room, playerOnMsg, s => {
-    const el = $('status'); if (!el) return; el.className = 'status' + (s === 'on' ? '' : ' off');
-    el.textContent = s === 'on' ? 'متصل' : (s === 'err' ? 'ارسال پیام ناموفق بود' : 'در حال اتصال…');
-    if (s === 'on') { net.send({ f: me.pid, t: 'join', d: { n: me.name } }); }
+  let pOk = 0;
+  net = Net(me.room, playerOnMsg, (s, d) => {
+    const el = $('status'); if (el) { el.className = 'status' + (s === 'on' ? '' : ' off'); el.textContent = statText(s, d); }
+    const dg = $('pdiag'); if (dg) dg.textContent = relayLine(d);
+    const more = okCount(d) > pOk; pOk = okCount(d);
+    if (more && net) { net.send({ f: me.pid, t: 'join', d: { n: me.name } }); }
   });
   net.send({ f: me.pid, t: 'join', d: { n: me.name } });
   setInterval(() => net.send({ f: me.pid, t: 'ping' }, 1), 30000);
