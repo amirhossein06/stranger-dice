@@ -1,123 +1,187 @@
-/* story.js: همه‌ی چیزهایی که برای عوض‌کردن داستان لازم است اینجاست.
-   index.html را لازم نیست دست بزنی. */
+/* story.js — everything you need to change the story lives here. You never have to touch index.html.
+   ABILITIES  : the 8 powers the host hands out (English + Persian text)
+   SCENES     : story scenes the host can show to everyone
+   TRAPS      : special cells on the board
+   ROLES      : the two role cards
+   QUESTIONS  : vocabulary questions [question, right answer, [3 wrong answers]] for 3 levels */
 window.SD = {
 
-  /* توانایی‌هایی که گرداننده می‌تواند به بازیکن‌ها بدهد.
-     type:
-       bonus  = با جواب درست، val خانه‌ی اضافه
-       double = با جواب درست، تاس دو برابر می‌شود
-       easy   = سوال یک سطح آسان‌تر می‌آید
-       time   = val ثانیه به زمان سوال اضافه می‌شود
-       steady = با جواب غلط، سطح سوال بعدی سخت‌تر نمی‌شود */
+  /* mode: 'turn'   = chosen at the start of your own turn
+           'other'  = used during another player's turn (Judger)
+           'passive'= works by itself, cash in once (Backpack)
+     Every ability can be used ONCE per game. */
   ABILITIES: {
-    eleven:  { name: 'قدرت ذهنی الون',     type: 'bonus',  val: 3,  desc: 'با جواب درست، ۳ خانه‌ی اضافه جلو می‌روی.' },
-    hopper:  { name: 'تفنگ هاپر',           type: 'double', val: 2,  desc: 'با جواب درست، عدد تاس دو برابر می‌شود.' },
-    steve:   { name: 'چماق میخ‌دار استیو',   type: 'steady', val: 0,  desc: 'اگر غلط جواب دهی، سوال بعدی سخت‌تر نمی‌شود.' },
-    dustin:  { name: 'قطب‌نمای داستین',      type: 'easy',   val: 1,  desc: 'سوال این نوبت یک سطح آسان‌تر است.' },
-    robin:   { name: 'رمزگشایی رابین',       type: 'time',   val: 10, desc: '۱۰ ثانیه به زمان سوال اضافه می‌شود.' },
-    joyce:   { name: 'چراغ‌های جویس',        type: 'bonus',  val: 2,  desc: 'با جواب درست، ۲ خانه‌ی اضافه جلو می‌روی.' }
+    frozen: {
+      name: 'Frozen Mind', mode: 'turn', type: 'time', val: 5,
+      en: 'Time freezes: you get 5 extra seconds to answer your question.',
+      fa: 'ذهن یخ‌زده: ۵ ثانیه زمان اضافه برای جواب دادن به سوال.'
+    },
+    elephant: {
+      name: 'Elephant Memory', mode: 'turn', type: 'memory',
+      en: 'Instead of a vocabulary question, you get a memory question about your own earlier questions (their level, their answers, your dice). Needs 2 answered questions first.',
+      fa: 'حافظه‌ی فیل: به‌جای سوال واژگان، یک سوال حافظه‌ای درباره‌ی سوال‌های قبلی خودت می‌آید (سطح، جواب درست، تاس). باید قبلاً به ۲ سوال جواب داده باشی.'
+    },
+    runner: {
+      name: 'Runner', mode: 'turn', type: 'runner',
+      en: 'Correct answer: the pawn moves DOUBLE the dice total. Wrong answer: you do NOT go back.',
+      fa: 'دونده: با جواب درست، مهره دو برابر عدد تاس جلو می‌رود. با جواب غلط عقب نمی‌روی.'
+    },
+    tech: {
+      name: 'Tech Savvy', mode: 'turn', type: 'swap',
+      en: 'After you see your question, you may swap it once for a new one.',
+      fa: 'خبره‌ی تکنولوژی: بعد از دیدن سوال، یک بار می‌توانی آن را با سوال دیگری عوض کنی.'
+    },
+    over: {
+      name: 'Over Thinker', mode: 'turn', type: 'fifty',
+      en: 'Two wrong options are removed from your question.',
+      fa: 'زیادفکر: دو گزینه‌ی غلط از سوالت حذف می‌شود.'
+    },
+    drama: {
+      name: 'Drama Queen', mode: 'turn', type: 'drama',
+      en: 'You may choose TWO options. If one of them is right, your answer counts as correct.',
+      fa: 'ملکه‌ی دراما: می‌توانی دو گزینه انتخاب کنی. اگر یکی از آن‌ها درست باشد، جوابت درست حساب می‌شود.'
+    },
+    judger: {
+      name: 'Judger', mode: 'other', type: 'judger',
+      en: "During another player's turn, before the question appears, predict if they will answer correctly. Right prediction: the pawn moves DOUBLE the dice forward. Wrong prediction: DOUBLE the dice backward.",
+      fa: 'داور: در نوبت یک بازیکن دیگر، قبل از دیدن سوال پیش‌بینی می‌کنی جواب درست می‌دهد یا نه. پیش‌بینی درست: مهره دو برابر تاس جلو می‌رود. پیش‌بینی غلط: دو برابر تاس عقب می‌رود.'
+    },
+    backpack: {
+      name: 'Essential Backpack', mode: 'passive', type: 'backpack',
+      en: 'Pick two friends. Every correct answer by you or by either friend puts 1 point in your backpack. Cash in once, any time: 1 point = 1 cell forward.',
+      fa: 'کوله‌پشتی ضروری: دو نفر را انتخاب کن. با هر جواب درست خودت یا هرکدام از آن دو، یک امتیاز در کوله‌ات جمع می‌شود. یک بار، هر وقت خواستی، خرجش کن: هر امتیاز ۱ خانه جلو.'
+    }
   },
 
-  /* صحنه‌های داستان. گرداننده یکی را انتخاب می‌کند و برای همه نمایش داده می‌شود.
-     gm = یادداشت فقط برای گرداننده.  choices = گزینه‌های بعدی که گرداننده می‌تواند فعال کند. */
+  ROLES: {
+    traitor: {
+      title: 'YOU ARE A TRAITOR', titleFa: 'شما خائن هستید',
+      en: 'To win, you must stop the players from moving forward. Do not get caught.',
+      fa: 'برای برنده شدن باید جلوی پیشروی بازیکن‌ها را بگیرید. لو نروید.'
+    },
+    team: {
+      title: 'YOU ARE TRAPPED', titleFa: 'شما گیر افتاده‌اید',
+      en: 'You are trapped in the Upside Down and you must escape!',
+      fa: 'شما در دنیای وارونه گیر افتاده‌اید و باید فرار کنید.'
+    }
+  },
+
+  /* special cells. kind: harder = next question gets harder for the player who lands,
+     less = next player has 5 s less time (same level), back = pawn goes back N cells, fwd = pawn goes forward N cells */
+  TRAPS: {
+    vecna:     { icon: '🌀', name: "Vecna's Curse",       kind: 'harder', text: 'Your next question is harder.' },
+    flayer:    { icon: '🧠', name: "Mind Flayer's Shadow", kind: 'less',   val: 5, text: 'The next player has 5 seconds less.' },
+    demodog:   { icon: '🐺', name: 'Demodog Pack',        kind: 'back',   val: 3, text: 'The pawn goes back 3 cells.' },
+    demogorgon:{ icon: '👹', name: 'Demogorgon',          kind: 'back',   val: 5, text: 'The pawn goes back 5 cells.' },
+    eleven:    { icon: '⚡', name: "Eleven's Power",      kind: 'fwd',    val: 2, text: 'The pawn jumps forward 2 cells.' }
+  },
+
+  /* board length choices for the host (calibrated with simulations for a 10-minute game) */
+  BOARDS: [
+    { n: 90,  t: '90 cells — quick players' },
+    { n: 100, t: '100 cells' },
+    { n: 110, t: '110 cells — recommended', d: 1 },
+    { n: 120, t: '120 cells — hard' }
+  ],
+
   FIRST_SCENE: 'start',
   SCENES: {
     start: {
-      title: 'دروازه‌ی هاوکینز',
-      text: 'شب است. برق شهر پریده و در جنگل کنار آزمایشگاه شکافی قرمز باز شده. باید پیش از طلوع آفتاب از دنیای وارونه فرار کنید.',
-      gm: 'بازیکن‌ها را معرفی کن و بگو توانایی هرکس چیست.',
-      choices: [{ label: 'وارد جنگل می‌شوید', to: 'forest' }]
+      title: 'The Hawkins Gate',
+      text: 'It is night. The power is out and a red rift has opened in the woods next to the lab. You must escape the Upside Down before dawn.',
+      gm: 'Introduce the players. Remind them: every power can be used only once.',
+      choices: [{ label: 'Enter the woods', to: 'forest' }]
     },
     forest: {
-      title: 'جنگل تاریک',
-      text: 'از میان درخت‌ها صدای نفس می‌آید. چراغ‌ها چشمک می‌زنند. دموگورگن نزدیک است.',
-      gm: 'منتظر تصمیم بازیکن‌ها بمان. هرکس می‌تواند توانایی‌اش را اعلام کند.',
+      title: 'The Dark Forest',
+      text: 'You hear breathing between the trees. The lights flicker. The Demogorgon is close.',
+      gm: 'Wait for the players to decide. Let them describe what they do.',
       choices: [
-        { label: 'دموگورگن یکی را می‌گیرد', to: 'caught' },
-        { label: 'در تونل پنهان می‌شوید', to: 'tunnel' }
+        { label: 'The Demogorgon grabs someone', to: 'caught' },
+        { label: 'Hide in the tunnel', to: 'tunnel' }
       ]
     },
     caught: {
-      title: 'در چنگ دموگورگن',
-      text: 'دموگورگن یکی از شما را گرفته است! هر کس تصمیم بگیرد از چه سلاح یا چه کسی کمک بخواهد.',
-      gm: 'اگر نجات موفق بود برو تونل، اگر نه آزمایشگاه (اسارت).',
+      title: 'In the Demogorgon\'s Grip',
+      text: 'The Demogorgon has caught one of you! Decide who helps and what weapon you use.',
+      gm: 'If the rescue works, go to the tunnel. If not, go to the lab (captured).',
       choices: [
-        { label: 'نجات موفق', to: 'tunnel' },
-        { label: 'نجات ناموفق', to: 'lab_trap' }
+        { label: 'Rescue works', to: 'tunnel' },
+        { label: 'Rescue fails', to: 'lab_trap' }
       ]
     },
     tunnel: {
-      title: 'تونل‌های زیر شهر',
-      text: 'تونل‌ها پر از تارهای چسبناک است و از دور صدای دموداگ‌ها می‌آید.',
-      gm: 'مسیر را به آزمایشگاه یا دروازه نزدیک کن.',
+      title: 'The Tunnels Under the Town',
+      text: 'The tunnels are full of sticky vines. Far away, you hear the Demodogs.',
+      gm: 'Lead them toward the lab or toward the gate.',
       choices: [
-        { label: 'رسیدن به آزمایشگاه', to: 'lab' },
-        { label: 'دیدن دروازه‌ی نهایی', to: 'gate' }
+        { label: 'Reach the lab', to: 'lab' },
+        { label: 'See the final gate', to: 'gate' }
       ]
     },
     lab_trap: {
-      title: 'اسیر در آزمایشگاه',
-      text: 'چند نفر از شما در سلول‌های آزمایشگاه گیر افتاده‌اید. باید راهی برای فرار پیدا کنید.',
-      gm: 'بازیکن‌ها باید با توانایی‌شان راه فرار پیدا کنند.',
-      choices: [{ label: 'فرار موفق', to: 'tunnel' }]
+      title: 'Prisoners in the Lab',
+      text: 'Some of you are stuck in the lab cells. You need to find a way out.',
+      gm: 'They must use their powers (and their heads) to get out.',
+      choices: [{ label: 'Escape succeeds', to: 'tunnel' }]
     },
     lab: {
-      title: 'آزمایشگاه هاوکینز',
-      text: 'راهروها خالی است ولی چراغ‌ها قرمز می‌زنند. یک نقشه روی دیوار هست که راه دروازه را نشان می‌دهد.',
-      gm: 'یک سرنخ بده و بازیکن‌ها را به دروازه برسان.',
-      choices: [{ label: 'رسیدن به دروازه', to: 'gate' }]
+      title: 'Hawkins Lab',
+      text: 'The halls are empty, but the lights are blinking red. A map on the wall shows the way to the gate.',
+      gm: 'Give them a clue and guide them to the gate.',
+      choices: [{ label: 'Reach the gate', to: 'gate' }]
     },
     gate: {
-      title: 'دروازه‌ی نهایی',
-      text: 'دروازه‌ی دنیای وارونه جلوی شماست. اگر مهره به خانه‌ی خروج برسد، همه فرار می‌کنید.',
-      gm: 'آخرین تصمیم را از بازیکن‌ها بگیر.',
-      choices: [{ label: 'فرار موفق', to: 'win' }]
+      title: 'The Final Gate',
+      text: 'The gate of the Upside Down is in front of you. If the pawn reaches the exit before time runs out, you escape.',
+      gm: 'Ask the players for their last decision.',
+      choices: [{ label: 'Escape succeeds', to: 'win' }]
     },
     win: {
-      title: 'فرار',
-      text: 'دروازه پشت سرتان بسته شد. هاوکینز امن است، دست‌کم تا فردا شب.',
-      gm: 'پایان داستان.',
+      title: 'Escape',
+      text: 'The gate closes behind you. Hawkins is safe, at least until tomorrow night.',
+      gm: 'End of the story.',
       choices: []
     }
   },
 
-  /* سوال‌ها: [متن سوال، جواب درست، سه گزینه‌ی غلط] در سه سطح آسان، متوسط و سخت */
+    /* واژگان Energy Vocabulary — سوال‌ها: [متن سوال، جواب درست، سه گزینه‌ی غلط] در سه سطح آسان، متوسط و سخت */
   QUESTIONS: {
   1: [
-    ['۷ + ۸ چند می‌شود؟', '۱۵', ['۱۴', '۱۶', '۱۳']],
-    ['پایتخت ایران کدام شهر است؟', 'تهران', ['اصفهان', 'شیراز', 'تبریز']],
-    ['یک هفته چند روز دارد؟', '۷', ['۵', '۶', '۱۰']],
-    ['عنکبوت چند پا دارد؟', '۸', ['۶', '۱۰', '۴']],
-    ['در سریال Stranger Things کدام شخصیت قدرت ذهنی دارد؟', 'الون', ['مایک', 'داستین', 'لوکاس']],
-    ['۶ × ۴ چند می‌شود؟', '۲۴', ['۲۰', '۲۸', '۳۰']],
-    ['بزرگ‌ترین حیوان خشکی کدام است؟', 'فیل', ['زرافه', 'شیر', 'خرس']],
-    ['۲۰ − ۹ چند می‌شود؟', '۱۱', ['۱۲', '۱۳', '۹']],
-    ['خورشید از کدام سو طلوع می‌کند؟', 'شرق', ['غرب', 'شمال', 'جنوب']],
-    ['آسمان در یک روز صاف چه رنگی است؟', 'آبی', ['سبز', 'قرمز', 'زرد']]
+    ["to prevent something from being wasted", "conserve", ["switch", "generate", "monitor"]],
+    ["to change from using one thing to another", "switch", ["conserve", "charge", "monitor"]],
+    ["a machine used in the home", "appliance", ["landfill", "investment", "consumption"]],
+    ["poisonous and harmful to living things", "toxic", ["eco-", "saving", "on standby"]],
+    ["to produce or create something (e.g., electricity)", "generate", ["monitor", "conserve", "charge"]],
+    ["to watch and check something regularly", "monitor", ["generate", "switch", "conserve"]],
+    ["a machine that uses hot air to dry clothes", "tumble dryer", ["appliance", "landfill", "national grid"]],
+    ["a place where large amounts of rubbish are buried", "landfill", ["national grid", "appliance", "investment"]],
+    ["short for ecology/ecological; relating to the environment", "eco-", ["saving", "toxic", "better still"]],
+    ["even better (used for emphasis)", "better still", ["on standby", "saving", "investment"]]
   ],
   2: [
-    ['۱۲ × ۱۲ چند می‌شود؟', '۱۴۴', ['۱۲۰', '۱۳۲', '۱۵۶']],
-    ['پایتخت ژاپن کدام شهر است؟', 'توکیو', ['اوساکا', 'کیوتو', 'سئول']],
-    ['فرمول شیمیایی آب کدام است؟', 'H₂O', ['CO₂', 'O₂', 'NaCl']],
-    ['شهر کوچک سریال Stranger Things چه نام دارد؟', 'هاوکینز', ['ریورویل', 'سیلنت هیل', 'توین پیکس']],
-    ['کدام سیاره به «سیاره سرخ» معروف است؟', 'مریخ', ['زهره', 'مشتری', 'عطارد']],
-    ['۱۵٪ از ۲۰۰ چند است؟', '۳۰', ['۲۰', '۲۵', '۴۰']],
-    ['روی زمین چند قاره وجود دارد؟', '۷', ['۵', '۶', '۸']],
-    ['۸۱ ÷ ۹ چند می‌شود؟', '۹', ['۸', '۱۱', '۷']],
-    ['شاهنامه اثر کدام شاعر است؟', 'فردوسی', ['حافظ', 'سعدی', 'مولوی']],
-    ['بلندترین قله‌ی ایران کدام است؟', 'دماوند', ['علم‌کوه', 'سبلان', 'الوند']]
+    ["We must ____ water.", "conserve", ["generate", "monitor", "charge"]],
+    ["Energy-____ light bulbs reduce costs. (adjective)", "-saving", ["eco-", "toxic", "investment"]],
+    ["High electricity ____ can be expensive.", "consumption", ["saving", "appliance", "investment"]],
+    ["____-friendly products are better for the planet.", "eco", ["toxic", "saving", "standby"]],
+    ["Switching providers gave us a good ____. (noun)", "saving", ["consumption", "investment", "landfill"]],
+    ["Never leave the computer ____ overnight.", "on standby", ["monitor", "tumble dryer", "landfill"]],
+    ["Remember to ____ up your laptop.", "charge", ["monitor", "conserve", "generate"]],
+    ["Too much waste goes to the ____.", "landfill", ["national grid", "appliance", "tumble dryer"]],
+    ["Solar panels are a good ____.", "investment", ["consumption", "landfill", "appliance"]],
+    ["Electricity is supplied from the ____.", "National Grid", ["landfill", "appliance", "tumble dryer"]]
   ],
   3: [
-    ['۱۷ × ۱۳ چند می‌شود؟', '۲۲۱', ['۲۳۱', '۲۱۱', '۲۰۱']],
-    ['جذر ۱۶۹ چند است؟', '۱۳', ['۱۲', '۱۴', '۱۷']],
-    ['پایتخت استرالیا کدام شهر است؟', 'کانبرا', ['سیدنی', 'ملبورن', 'پرت']],
-    ['نماد شیمیایی طلا چیست؟', 'Au', ['Ag', 'Gd', 'Go']],
-    ['هیولای اصلی فصل اول Stranger Things چه نام دارد؟', 'دموگورگن', ['مایند فلیر', 'دمودوگ', 'ونکا']],
-    ['جنگ جهانی دوم در چه سالی پایان یافت؟', '۱۹۴۵', ['۱۹۱۸', '۱۹۳۹', '۱۹۵۳']],
-    ['۲ به توان ۱۰ چند است؟', '۱۰۲۴', ['۱۰۰۰', '۵۱۲', '۲۰۴۸']],
-    ['بزرگ‌ترین سیاره‌ی منظومه‌ی شمسی کدام است؟', 'مشتری', ['زحل', 'نپتون', 'اورانوس']],
-    ['کوچک‌ترین سیاره‌ی منظومه‌ی شمسی کدام است؟', 'عطارد', ['مریخ', 'زهره', 'نپتون']],
-    ['نخستین عدد اول بعد از ۸۹ کدام است؟', '۹۷', ['۹۱', '۹۳', '۹۹']]
+    ["I want to ____ to a more energy-efficient car.", "switch", ["conserve", "monitor", "generate"]],
+    ["Plug in the power bank so you can ____ up your phone later.", "charge", ["monitor", "switch", "conserve"]],
+    ["Walk to the shop, or ____, cycle.", "better still", ["on standby", "investment", "saving"]],
+    ["Wind turbines ____ electricity from the wind.", "generate", ["conserve", "monitor", "switch"]],
+    ["Check your meter every week to ____ how much gas you use.", "monitor", ["generate", "conserve", "charge"]],
+    ["Old batteries are ____ waste, so don't put them in the bin.", "toxic", ["eco-", "saving", "on standby"]],
+    ["Turning off lights when you leave helps to ____ energy.", "conserve", ["generate", "monitor", "charge"]],
+    ["The TV still uses a little power when it is ____.", "on standby", ["toxic", "tumble dryer", "landfill"]],
+    ["Using a washing line instead of a ____ saves electricity.", "tumble dryer", ["landfill", "national grid", "investment"]],
+    ["The network that connects power stations across the country is the ____.", "national grid", ["landfill", "appliance", "investment"]]
   ]
-}
+  }
 };

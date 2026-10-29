@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stranger Dice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Vazirmatn:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0709; --surface: #150d11; --surface-2: #1e1117; --line: #3a1b24;
+  --fg: #f4ebe6; --muted: #ab9297; --red: #e5262d; --red-glow: rgba(229, 38, 45, .22);
+  --good: #3ddc97; --warn: #f2b84b; --bad: #ff5a5f; --die: #efe3dc; --pip: #8b1a22;
+  --display: 'Abril Fatface', Georgia, serif;
+  --body: 'Vazirmatn', Tahoma, system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: #0b0709; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; min-height: 100vh; color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.6;
+  background: radial-gradient(120% 55% at 50% -12%, var(--red-glow), transparent 62%) var(--bg);
+  padding-block: 12px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+#app { max-width: 520px; margin-inline: auto; display: flex; flex-direction: column; gap: 12px; }
+button, input, select, textarea { font-family: inherit; font-size: 1rem; touch-action: manipulation; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+h2, h3 { margin: 0; font-weight: 800; }
+h2 { font-size: 1.1rem; } h3 { font-size: 1rem; }
+.muted { color: var(--muted); font-size: .88rem; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.grow { flex: 1; min-width: 0; }
+
+.logo { text-align: center; }
+.logo h1 {
+  margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 8vw, 2.4rem); letter-spacing: .05em;
+  color: #ff4a4f; text-shadow: 0 0 6px rgba(229, 38, 45, .95), 0 0 26px rgba(229, 38, 45, .55); animation: flick 7s infinite;
+}
+.logo p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+@keyframes flick { 0%, 18%, 22%, 62%, 66%, 100% { opacity: 1; } 19%, 21% { opacity: .3; } 63%, 65% { opacity: .55; } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.panel.glow { border-color: var(--red); box-shadow: 0 0 18px var(--red-glow); }
+.btn {
+  min-height: 48px; border-radius: 10px; border: 0; cursor: pointer; padding: 0 16px;
+  background: var(--red); color: #fff; font-weight: 800; box-shadow: 0 0 18px var(--red-glow);
+}
+.btn.block { width: 100%; }
+.btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--fg); box-shadow: none; font-weight: 600; }
+.btn.small { min-height: 38px; padding: 0 12px; font-size: .9rem; }
+.btn:disabled { opacity: .45; cursor: default; box-shadow: none; }
+input[type=text], select, textarea {
+  min-height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); padding: 6px 12px; width: 100%;
+}
+textarea { min-height: 70px; resize: vertical; }
+.pill { border-radius: 999px; padding: 0 10px; font-size: .78rem; font-weight: 800; border: 1px solid currentColor; white-space: nowrap; }
+.good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--good); box-shadow: 0 0 8px var(--good); }
+
+.status { position: sticky; top: 0; z-index: 3; text-align: center; font-size: .8rem; padding: 3px 8px; border-radius: 0 0 8px 8px; background: var(--surface-2); color: var(--muted); }
+.status.off { background: #4a1418; color: #ffd4d6; }
+
+.scene { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: linear-gradient(160deg, rgba(229, 38, 45, .12), var(--surface)); }
+.scene h2 { color: #ff6a6f; margin-bottom: 4px; }
+.scene p { margin: 0; line-height: 1.9; }
+.scene .note { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--warn); }
+
+.prog { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; direction: ltr; }
+.prog i { display: block; height: 100%; background: linear-gradient(90deg, #8b1a22, #ff4a4f); transition: width .5s; }
+
+.board-wrap { height: min(34vh, 260px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 6px; background: var(--surface); }
+.board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; direction: ltr; }
+.cell { position: relative; aspect-ratio: 1; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+.cell .n { position: absolute; top: 1px; inset-inline-start: 3px; font-size: .55rem; color: var(--muted); }
+.cell.seen { background: rgba(229, 38, 45, .16); }
+.cell.fin { border-color: var(--red); } .cell.fin .n, .cell.sta .n { color: var(--bad); font-weight: 800; }
+.cell.here { border-color: var(--fg); background: rgba(229, 38, 45, .35); }
+.cell.here::after {
+  content: ''; position: absolute; inset: 22%; border-radius: 50%; background: #ff4a4f; box-shadow: 0 0 12px #ff4a4f, 0 0 0 2px var(--fg);
+}
+
+.dice { display: flex; gap: 10px; justify-content: center; }
+.die {
+  width: 54px; height: 54px; border-radius: 11px; background: var(--die); padding: 7px; gap: 2px;
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); box-shadow: 0 4px 0 #b9a79e, 0 0 16px var(--red-glow);
+}
+.die i { border-radius: 50%; place-self: center; width: 9px; height: 9px; }
+.die i.on { background: var(--pip); }
+.total { text-align: center; font-size: 1.05rem; } .total b { font-size: 1.5rem; }
+
+.abil { display: flex; flex-direction: column; gap: 2px; text-align: start; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; width: 100%; }
+.abil b { font-size: 1rem; } .abil:active { border-color: var(--red); } .abil:disabled { opacity: .4; cursor: default; }
+.abil.card { cursor: default; margin-bottom: 8px; } .abil.dead { opacity: .55; }
+.abil.sel { border-color: var(--red); background: var(--red-glow); }
+
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; margin-inline: auto; max-width: 540px; z-index: 10;
+  background: var(--surface-2); border-top: 1px solid var(--red); border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px var(--red-glow);
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  animation: rise .25s ease-out;
+}
+@keyframes rise { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.q-time { font-weight: 800; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 8px 0 12px; }
+.bar i { display: block; height: 100%; background: var(--good); transform-origin: right; }
+.q-text { font-size: 1.2rem; font-weight: 800; line-height: 1.5; margin: 0 0 12px; }
+.opt { min-height: 48px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-align: start; cursor: pointer; width: 100%; margin-bottom: 8px; }
+.opt.pick { border-color: var(--warn); background: rgba(242, 184, 75, .14); }
+.opt.right { border-color: var(--good); background: rgba(61, 220, 151, .14); }
+.opt:disabled { cursor: default; }
+
+.result { text-align: center; padding: 12px; border-radius: 10px; border: 1px solid currentColor; }
+.logbox { max-height: 150px; overflow-y: auto; font-size: .85rem; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+
+.qr { width: 190px; max-width: 60%; margin-inline: auto; border-radius: 8px; overflow: hidden; }
+.qr svg { display: block; width: 100%; height: auto; }
+.code { font-family: var(--display); font-size: 2.2rem; letter-spacing: .25em; text-align: center; color: #ff4a4f; direction: ltr; }
+.link { direction: ltr; text-align: left; word-break: break-all; font-size: .8rem; color: var(--muted); }
+.plist { display: flex; flex-direction: column; gap: 8px; }
+.pitem { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
+.pitem.turn { border-color: var(--red); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chk { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: .82rem; }
+.chk select { min-height: 26px; width: auto; padding: 0 4px; font-size: .8rem; }
+.chk input { width: 18px; height: 18px; }
+details > summary { cursor: pointer; font-weight: 800; }
+.win { position: fixed; inset: 0; z-index: 20; background: rgba(6, 3, 4, .94); display: grid; place-items: center; text-align: center; padding: 24px; }
+.win h2 { font-family: var(--display); font-weight: 400; font-size: 2.4rem; color: #ff4a4f; text-shadow: 0 0 24px rgba(229, 38, 45, .7); }
+@media (prefers-reduced-motion: reduce) { .logo h1, .sheet { animation: none; } .prog i { transition: none; } }
+
+.clock { font-family: var(--display); font-size: 1.7rem; letter-spacing: .08em; color: #ff4a4f; direction: ltr; text-shadow: 0 0 12px rgba(229, 38, 45, .6); font-variant-numeric: tabular-nums; }
+.clock.low { color: #fff; animation: pulse 1s infinite; } .clock.paused { opacity: .5; }
+@keyframes pulse { 50% { opacity: .35; } }
+.cell .t { position: absolute; left: 0; right: 0; bottom: 1px; text-align: center; font-size: .78rem; line-height: 1; }
+.cell.trap { border-color: #7a2b34; } .cell.bonus { border-color: #2b7a58; }
+.fa { display: block; direction: rtl; text-align: right; font-family: var(--body); }
+.abil .fa { color: var(--muted); font-size: .88rem; }
+.rolecard { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: linear-gradient(160deg, rgba(61, 220, 151, .12), var(--surface)); }
+.rolecard.t { border-color: var(--red); background: linear-gradient(160deg, rgba(229, 38, 45, .32), var(--surface)); }
+.rolecard h2 { font-size: 1.25rem; } .rolecard p { margin: 6px 0; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="story.js"></script>
+<script>
+'use strict';
+/* ====================== ابزارهای کوچک ====================== */
+const SD = window.SD;
+const Q = new URLSearchParams(location.search);
+const AS = Q.get('as') || '';                                   // فقط برای تست چند صفحه در یک مرورگر
+const RELAY = (Q.get('relay') || 'https://ntfy.sh').replace(/\/+$/, '');
+const LIM = { 1: 20, 2: 15, 3: 10 };
+const LVN = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
+const $ = id => document.getElementById(id);
+const fa = n => String(n);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const rid = () => Math.random().toString(36).slice(2, 10);
+const rnd = n => Math.floor(Math.random() * n);
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const store = {
+  get(k) { try { return localStorage.getItem(k + AS); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k + AS, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k + AS); } catch (e) {} }
+};
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const diceHtml = d => '<div class="dice">' + d.map(v => '<div class="die">' + Array.from({ length: 9 }, (_, i) => `<i class="${PIPS[v].includes(i) ? 'on' : ''}"></i>`).join('') + '</div>').join('') + '</div>';
+
+/* ====================== QR (نسخه ۱ تا ۵، سطح L) ====================== */
+function qrMatrix(text) {
+  const bytes = [...new TextEncoder().encode(text)];
+  const CAP = [0, 19, 34, 55, 80, 108], ECC = [0, 7, 10, 15, 20, 26];
+  let ver = 1; while (ver < 5 && bytes.length + 2 > CAP[ver]) ver++;
+  if (bytes.length + 2 > CAP[ver]) return null;
+  const size = 17 + 4 * ver, cap = CAP[ver], bits = [];
+  const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+  put(4, 4); put(bytes.length, 8); bytes.forEach(b => put(b, 8));
+  for (let i = 0; i < 4 && bits.length < cap * 8; i++) bits.push(0);
+  while (bits.length % 8) bits.push(0);
+  const data = []; for (let i = 0; i < bits.length; i += 8) { let v = 0; for (let j = 0; j < 8; j++) v = (v << 1) | bits[i + j]; data.push(v); }
+  for (let pad = 0xEC; data.length < cap; pad ^= 0xEC ^ 0x11) data.push(pad);
+  const mul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z; };
+  const deg = ECC[ver]; const div = new Array(deg).fill(0); div[deg - 1] = 1; let root = 1;
+  for (let i = 0; i < deg; i++) { for (let j = 0; j < deg; j++) { div[j] = mul(div[j], root); if (j + 1 < deg) div[j] ^= div[j + 1]; } root = mul(root, 2); }
+  const rem = new Array(deg).fill(0);
+  for (const b of data) { const f = b ^ rem.shift(); rem.push(0); div.forEach((c, i) => { rem[i] ^= mul(c, f); }); }
+  const all = data.concat(rem);
+  const grid = () => Array.from({ length: size }, () => new Array(size).fill(false));
+  const mod = grid(), fn = grid();
+  const setF = (M, x, y, d) => { M[y][x] = d; fn[y][x] = true; };
+  for (let i = 0; i < size; i++) { setF(mod, 6, i, i % 2 === 0); setF(mod, i, 6, i % 2 === 0); }
+  const finder = (cx, cy) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy; if (x >= 0 && x < size && y >= 0 && y < size) setF(mod, x, y, d !== 2 && d !== 4); } };
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  if (ver >= 2) { const c = size - 7; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) setF(mod, c + dx, c + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1); }
+  const fmt = (M, mask) => {
+    const d = (1 << 3) | mask; let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+    const b = ((d << 10) | r) ^ 0x5412, g = i => ((b >>> i) & 1) === 1, s = (x, y, v) => setF(M, x, y, v);
+    for (let i = 0; i <= 5; i++) s(8, i, g(i)); s(8, 7, g(6)); s(8, 8, g(7)); s(7, 8, g(8));
+    for (let i = 9; i < 15; i++) s(14 - i, 8, g(i));
+    for (let i = 0; i < 8; i++) s(size - 1 - i, 8, g(i));
+    for (let i = 8; i < 15; i++) s(8, size - 15 + i, g(i));
+    s(8, size - 8, true);
+  };
+  fmt(mod, 0);
+  let k = 0;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+      const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+      if (!fn[y][x] && k < all.length * 8) { mod[y][x] = ((all[k >>> 3] >>> (7 - (k & 7))) & 1) === 1; k++; }
+    }
+  }
+  const MF = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x, y) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+    (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
+    (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0, (x, y) => (((x + y) % 2) + (x * y) % 3) % 2 === 0];
+  const penalty = M => {
+    let p = 0, dark = 0;
+    for (let a = 0; a < size; a++) for (const rowwise of [true, false]) {
+      let run = 1;
+      for (let b = 1; b < size; b++) {
+        const cur = rowwise ? M[a][b] : M[b][a], prev = rowwise ? M[a][b - 1] : M[b - 1][a];
+        if (cur === prev) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1;
+      }
+    }
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      if (M[y][x]) dark++;
+      if (x + 1 < size && y + 1 < size && M[y][x] === M[y][x + 1] && M[y][x] === M[y + 1][x] && M[y][x] === M[y + 1][x + 1]) p += 3;
+    }
+    return p + (Math.ceil(Math.abs(dark * 20 - size * size * 10) / (size * size)) - 1) * 10;
+  };
+  let best = null, bestP = 1e9;
+  for (let m = 0; m < 8; m++) {
+    const M = mod.map(r => r.slice());
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y][x] && MF[m](x, y)) M[y][x] = !M[y][x];
+    fmt(M, m);
+    const p = penalty(M); if (p < bestP) { bestP = p; best = M; }
+  }
+  return best;
+}
+function qrSvg(text) {
+  const m = qrMatrix(text); if (!m) return '';
+  const n = m.length, b = 4; let d = '';
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (m[y][x]) d += `M${x + b},${y + b}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${n + 2 * b} ${n + 2 * b}" shape-rendering="crispEdges" role="img" aria-label="QR"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
+/* ====================== ارتباط زنده (چند رله‌ی هم‌زمان) ====================== */
+const RELAYS = [
+  { n: 'ntfy', k: 'ntfy', u: RELAY },
+  { n: 'HiveMQ', k: 'mqtt', u: 'wss://broker.hivemq.com:8884/mqtt' },
+  { n: 'EMQX', k: 'mqtt', u: 'wss://broker.emqx.io:8084/mqtt' },
+  { n: 'Mosquitto', k: 'mqtt', u: 'wss://test.mosquitto.org:8081' }
+];
+const relayLine = st => RELAYS.filter(r => r.n in st).map(r => r.n + ' ' + ({ ok: '✓', fail: '✗', wait: '…' }[st[r.n]] || '…')).join(' · ');
+const okCount = st => Object.values(st || {}).filter(x => x === 'ok').length;
+const statText = (s, d) => (s === 'on' ? 'متصل' : s === 'err' ? 'ارسال پیام ناموفق بود' : 'در حال اتصال') + ' · ' + relayLine(d || {});
+
+function ntfyConn(def, topic, onData, onSt) {
+  let ws = null, closed = false, lastId = '', retry = 0;
+  function connect() {
+    if (closed) return; onSt('wait'); let w;
+    try { w = new WebSocket(def.u.replace(/^http/, 'ws') + '/' + topic + '/ws' + (lastId ? '?since=' + encodeURIComponent(lastId) : '')); } catch (e) { return later(); }
+    ws = w;
+    w.onmessage = e => {
+      let ev; try { ev = JSON.parse(e.data); } catch (x) { return; }
+      if (ev.event === 'open') { retry = 0; onSt('ok'); return; }
+      if (ev.event !== 'message') return;
+      if (ev.id) lastId = ev.id;
+      onData(ev.message);
+    };
+    w.onclose = () => { if (ws === w) { onSt('fail'); later(); } };
+    w.onerror = () => { try { w.close(); } catch (x) {} };
+  }
+  function later() { if (!closed) setTimeout(connect, Math.min(8000, 700 * (++retry))); }
+  async function send(text) { try { const r = await fetch(def.u + '/' + topic, { method: 'POST', body: text }); return r.ok; } catch (e) { return false; } }
+  connect();
+  return { send, close() { closed = true; try { ws && ws.close(); } catch (e) {} } };
+}
+
+function mqttConn(def, topic, onData, onSt) {
+  let ws = null, closed = false, retry = 0, buf = new Uint8Array(0), ping = null, ok = false;
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const str = s => { const b = enc.encode(s); return [b.length >> 8, b.length & 255, ...b]; };
+  const rl = n => { const o = []; do { let d = n % 128; n = Math.floor(n / 128); if (n > 0) d |= 128; o.push(d); } while (n > 0); return o; };
+  const pkt = (h, body) => Uint8Array.from([h, ...rl(body.length), ...body]);
+  function connect() {
+    if (closed) return; onSt('wait'); ok = false; let w;
+    try { w = new WebSocket(def.u, 'mqtt'); } catch (e) { return later(); }
+    ws = w; w.binaryType = 'arraybuffer'; buf = new Uint8Array(0);
+    w.onopen = () => { w.send(pkt(0x10, [0, 4, 77, 81, 84, 84, 4, 2, 0, 30, ...str('sd' + rid())])); };
+    w.onmessage = e => {
+      if (!(e.data instanceof ArrayBuffer)) return;
+      const a = new Uint8Array(e.data), nb = new Uint8Array(buf.length + a.length); nb.set(buf); nb.set(a, buf.length); buf = nb; parse(w);
+    };
+    w.onclose = () => { if (ws === w) { ok = false; clearInterval(ping); onSt('fail'); later(); } };
+    w.onerror = () => { try { w.close(); } catch (x) {} };
+  }
+  function parse(w) {
+    while (buf.length >= 2) {
+      let i = 1, mul = 1, len = 0, b;
+      do { if (i >= buf.length) return; b = buf[i++]; len += (b & 127) * mul; mul *= 128; } while (b & 128);
+      if (buf.length < i + len) return;
+      const h = buf[0], t = h >> 4, body = buf.slice(i, i + len); buf = buf.slice(i + len);
+      if (t === 2) { if (body[1] === 0) w.send(pkt(0x82, [0, 1, ...str(topic), 0])); else { try { w.close(); } catch (x) {} } }
+      else if (t === 9) {
+        if (body[2] === 0x80) { try { w.close(); } catch (x) {} return; }
+        ok = true; retry = 0; onSt('ok'); clearInterval(ping); ping = setInterval(() => { try { w.send(Uint8Array.of(0xC0, 0)); } catch (x) {} }, 20000);
+      } else if (t === 3) {
+        const tl = (body[0] << 8) | body[1], qos = (h >> 1) & 3;
+        onData(dec.decode(body.slice(2 + tl + (qos ? 2 : 0))));
+      }
+    }
+  }
+  function later() { if (!closed) setTimeout(connect, Math.min(10000, 900 * (++retry))); }
+  function send(text) { if (!ok || !ws || ws.readyState !== 1) return false; try { ws.send(pkt(0x30, [...str(topic), ...enc.encode(text)])); return true; } catch (e) { return false; } }
+  connect();
+  return { send, close() { closed = true; clearInterval(ping); try { ws && ws.close(); } catch (e) {} } };
+}
+
+function Net(room, onmsg, onstat) {
+  const tN = 'sdq-' + room, tM = 'strangerdice/v1/' + room;
+  const only = (Q.get('only') || '').toLowerCase();
+  const defs = RELAYS.filter(r => !only || r.k === only || r.n.toLowerCase() === only);
+  const st = {}, seen = new Set(), order = []; let failed = false;
+  const report = () => onstat(okCount(st) ? 'on' : failed ? 'err' : 'off', st);
+  const onData = text => {
+    let m; try { m = JSON.parse(text); } catch (x) { return; }
+    if (!m || m.r !== room || seen.has(m.id)) return;
+    seen.add(m.id); order.push(m.id); if (order.length > 500) seen.delete(order.shift());
+    onmsg(m);
+  };
+  const conns = defs.map(d => (d.k === 'ntfy' ? ntfyConn : mqttConn)(d, d.k === 'ntfy' ? tN : tM, onData, s => { st[d.n] = s; report(); }));
+  async function send(m, tries = 3) {
+    m.r = room; m.id = m.id || rid(); seen.add(m.id); const text = JSON.stringify(m);
+    for (let i = 0; i < tries; i++) {
+      const res = await Promise.all(conns.map(c => c.send(text)));
+      if (res.some(Boolean)) { if (failed) { failed = false; report(); } return true; }
+      await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
+    failed = true; report(); return false;
+  }
+  return { send, close() { conns.forEach(c => c.close()); } };
+}
+
+/* ====================== shared: scene, board, clock ====================== */
+const sceneOf = id => SD.SCENES[id] || { title: '', text: '' };
+function sceneHtml(st) {
+  const s = sceneOf(st.sc);
+  return `<div class="scene"><h2>${esc(s.title)}</h2><p>${esc(s.text)}</p>${st.note ? `<div class="note">${esc(st.note)}</div>` : ''}</div>`;
+}
+const Board = {
+  N: 0, key: '', cells: [],
+  build(el, N, traps) {
+    const key = N + '|' + JSON.stringify(traps || {});
+    if (this.key === key && el.firstChild) return;
+    this.key = key; this.N = N; this.cells = []; let h = '';
+    for (let k = 0; k < N; k++) {
+      const r = Math.floor(k / 8), c = k % 8, p = r * 8 + (r % 2 ? 7 - c : c);
+      const t = traps && traps[p] ? SD.TRAPS[traps[p]] : null;
+      h += `<div class="cell${p === 0 ? ' sta' : ''}${p === N - 1 ? ' fin' : ''}${t ? (t.kind === 'fwd' ? ' bonus' : ' trap') : ''}" data-p="${p}"${t ? ` title="${esc(t.name)}"` : ''}><span class="n">${p === 0 ? 'START' : p === N - 1 ? 'EXIT' : p}</span>${t ? `<span class="t">${t.icon}</span>` : ''}</div>`;
+    }
+    el.innerHTML = h; el.querySelectorAll('.cell').forEach(c => { this.cells[+c.dataset.p] = c; });
+  },
+  mark(wrap, pos) {
+    this.cells.forEach((c, p) => { c.classList.toggle('seen', p < pos); c.classList.toggle('here', p === pos); });
+    const c = this.cells[pos]; if (c) wrap.scrollTo({ top: Math.max(0, c.offsetTop - wrap.clientHeight / 2), behavior: 'smooth' });
+  }
+};
+const legendHtml = () => '<details><summary class="muted">Special cells</summary><div class="muted" style="margin-top:6px;line-height:1.9">' +
+  Object.values(SD.TRAPS).map(t => `${t.icon} <b>${esc(t.name)}</b>: ${esc(t.text)}`).join('<br>') + '</div></details>';
+function boardBlock(st) {
+  return `<div class="prog" aria-label="progress"><i id="progI" style="width:${Math.round(st.pos / (st.N - 1) * 100)}%"></i></div>
+  <div class="row muted"><span id="progT">Cell ${st.pos} of ${st.N - 1}</span></div>
+  <div class="board-wrap" id="bwrap"><div class="board" id="board"></div></div>${legendHtml()}`;
+}
+function boardUpdate(st) {
+  const b = $('board'); if (!b) return;
+  const pi = $('progI'), pt = $('progT');
+  if (pi) pi.style.width = Math.round(st.pos / (st.N - 1) * 100) + '%';
+  if (pt) pt.textContent = 'Cell ' + st.pos + ' of ' + (st.N - 1);
+  Board.build(b, st.N, st.tp); Board.mark($('bwrap'), st.pos);
+}
+function logHtml(st) { return '<div class="logbox">' + (st.lg || []).slice().reverse().map(t => `<div>• ${esc(t)}</div>`).join('') + '</div>'; }
+const pname = (st, id) => { const p = (st.pl || []).find(x => x.i === id); return p ? p.n : '?'; };
+const abInfo = k => SD.ABILITIES[k] || { name: k, en: '', fa: '', mode: 'turn' };
+const faLine = t => `<span class="fa" dir="rtl" lang="fa">${esc(t)}</span>`;
+
+/* global 10-minute clock (host sends the remaining time; every screen counts down locally) */
+let clockSrc = null;
+function setClock(rem, pz) { clockSrc = rem == null ? null : { rem, at: Date.now(), pz: !!pz }; }
+const clockText = ms => { const s = Math.ceil(Math.max(0, ms) / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+setInterval(() => {
+  const el = $('gclock'); if (!el) return;
+  if (!clockSrc) { el.textContent = '--:--'; return; }
+  const r = Math.max(0, clockSrc.rem - (clockSrc.pz ? 0 : Date.now() - clockSrc.at));
+  el.textContent = clockText(r); el.classList.toggle('low', r < 60000 && r > 0); el.classList.toggle('paused', clockSrc.pz);
+}, 250);
+
+/* ====================== start screen ====================== */
+const app = $('app');
+let net = null, role = null;
+const head = `<div class="logo"><h1>STRANGER DICE</h1><p>Escape the Upside Down</p></div>`;
+function startScreen() {
+  const room = (Q.get('r') || '').toUpperCase();
+  if (room) return playerStart(room);
+  const saved = store.get('sd-host-room');
+  app.innerHTML = head + `<div class="panel">
+    <h2>Game Master</h2>
+    <p class="muted">Create a room. Players join with the QR code or the room code.</p>
+    <label class="muted">Board length
+      <select id="nsel">${(SD.BOARDS || [{ n: 70, t: '70 cells' }]).map(b => `<option value="${b.n}" ${b.d ? 'selected' : ''}>${esc(b.t)}</option>`).join('')}</select></label>
+    <button class="btn block" id="newRoom" type="button">Create new room</button>
+    ${saved ? `<button class="btn ghost block" id="resume" type="button">Resume previous room (${esc(saved)})</button>` : ''}
+  </div>
+  <div class="panel"><h2>Player</h2>
+    <label class="muted" for="joinCode">Room code</label>
+    <input type="text" id="joinCode" maxlength="8" autocapitalize="characters" autocomplete="off" dir="ltr" placeholder="ABCDE">
+    <button class="btn block" id="goJoin" type="button">Continue</button></div>`;
+  $('newRoom').onclick = () => hostInit(Array.from({ length: 5 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[rnd(31)]).join(''), +$('nsel').value);
+  if (saved) $('resume').onclick = () => hostInit(saved, 0);
+  $('goJoin').onclick = () => { const c = $('joinCode').value.trim().toUpperCase(); if (c) playerStart(c); };
+}
+
+/* ====================== HOST ====================== */
+const GAME_MS = 10 * 60 * 1000, IDLE_MS = 25000, ROLL_MS = 15000, JUDGE_MS = 8000, NEXT_MS = 4500, VER = 3;
+let H = null, hNet = null, qTimer = null, advTimer = null, idleTimer = null, jTimer = null, rollT = null, secret = null, hOnline = {}, sendT = null;
+const pidShort = () => rid().slice(0, 6);
+const online = id => H.pl[id] && Date.now() - (H.pl[id].seen || 0) < 75000;
+function makeTraps(room, N) {
+  let h = 0; for (const c of room) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const rng = () => { h |= 0; h = h + 0x6D2B79F5 | 0; let t = Math.imul(h ^ h >>> 15, 1 | h); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const out = {}, types = ['vecna', 'vecna', 'vecna', 'flayer', 'flayer', 'flayer', 'demodog', 'demodog', 'demogorgon', 'demogorgon'];
+  const place = type => { for (let k = 0; k < 300; k++) { const c = 4 + Math.floor(rng() * (N - 8)); if (out[c] || out[c - 1] || out[c + 1]) continue; out[c] = type; return; } };
+  const nT = Math.round(N * 0.13), nR = N >= 40 ? 3 : 1;
+  for (let i = 0; i < nT; i++) place(types[Math.floor(rng() * types.length)]);
+  for (let i = 0; i < nR; i++) place('eleven');
+  return out;
+}
+const newPlayer = (name, now) => ({ n: name, ab: {}, lv: 2, seen: now, ok: false, hist: [], bp: { w: [], pts: 0 } });
+function hostInit(room, N) {
+  role = 'host';
+  const saved = store.get('sd-h-' + room);
+  if (saved) { try { H = JSON.parse(saved); } catch (e) { H = null; } }
+  if (H && H.ver !== VER) H = null;
+  if (!H) { N = N || 70; H = { ver: VER, room, N, ph: 'lobby', pos: 0, tid: 0, aid: 0, v: 0, turn: null, sc: SD.FIRST_SCENE, note: '', act: null, auto: true, log: [], order: [], pl: {}, tr: [], trCand: [], trRej: [], ntr: 1, traps: makeTraps(room, N), endAt: 0, remMs: GAME_MS, paused: false, win: null, cut: 0 }; }
+  if (H.act && H.act.st !== 'r') { H.act = null; H.tid++; }
+  store.set('sd-host-room', H.room);
+  hNet = Net(H.room, hostOnMsg, (s, d) => { const more = okCount(d) > hOk; hOk = okCount(d); hStat = s; hDet = d; paintStatus(); if (more && hNet) { sendState(); sendRoles(); } });
+  hostSkeleton();
+  hostSave(); sendState();
+  if (H.ph === 'play') { if (remMs() <= 0) endGame('traitors'); else armIdle(); }
+  setInterval(() => {
+    let ch = false; const now = Date.now();
+    H.order.forEach(id => { const on = now - (H.pl[id].seen || 0) < 75000; if (hOnline[id] !== on) { hOnline[id] = on; ch = true; } });
+    if (ch) bump(); else sendState();
+  }, 25000);
+  setInterval(() => {
+    setClock(H.ph === 'play' ? remMs() : null, H.paused);
+    if (H.ph === 'play' && !H.paused && remMs() <= 0) { endGame('traitors'); bump(); }
+  }, 1000);
+}
+let hStat = '', hDet = {}, hOk = 0;
+function paintStatus() {
+  const el = $('status'); if (!el) return;
+  el.className = 'status' + (hStat === 'on' ? '' : ' off'); el.hidden = false;
+  el.textContent = statText(hStat, hDet);
+}
+function hostSave() { store.set('sd-h-' + H.room, JSON.stringify(H)); }
+function hlog(t, hostOnly) { H.log.push([t, hostOnly ? 1 : 0]); if (H.log.length > 50) H.log.shift(); }
+const remMs = () => H.paused ? H.remMs : Math.max(0, H.endAt - Date.now());
+function pub() {
+  const now = Date.now(), a = H.act;
+  const o = {
+    v: H.v, ph: H.ph, N: H.N, pos: H.pos, tid: H.tid, turn: H.turn, sc: H.sc, note: H.note, tp: H.traps,
+    act: a ? { aid: a.aid, pid: a.pid, ab: a.ab, st: a.st, d: a.d, t: a.t, ms: a.ms, res: a.res } : null,
+    pl: H.order.map(id => { const p = H.pl[id]; return { i: id, n: p.n, a: p.ab, o: now - (p.seen || 0) < 75000 ? 1 : 0, c: p.ok ? 1 : 0, hc: p.hist.length, bp: p.bp }; }),
+    lg: H.log.filter(x => !x[1]).slice(-6).map(x => x[0])
+  };
+  if (H.ph === 'play') { o.rem = remMs(); o.pz = H.paused ? 1 : 0; }
+  if (H.ph === 'end') o.end = { w: H.win, tr: H.tr.map(id => H.pl[id] ? H.pl[id].n : '?') };
+  return o;
+}
+setInterval(() => { try { if (typeof hNet !== 'undefined' && hNet && H && H.room) sendState(); } catch (e) {} }, 5000);
+function sendState() { hNet.send({ f: 'h', t: 'st', d: pub() }); }
+function sendRole(pid) {
+  const p = H.pl[pid]; if (!p || !(H.ph === 'role' || H.ph === 'play')) return;
+  const t = H.tr.includes(pid);
+  hNet.send({ f: 'h', t: 'role', to: pid, d: { r: t ? 't' : 'm', mates: t ? H.tr.filter(x => x !== pid && H.pl[x]).map(x => H.pl[x].n) : [] } });
+}
+function sendRoles() { H.order.forEach(sendRole); }
+function bump() {
+  H.v++; hostSave(); hostRender();
+  clearTimeout(sendT); sendT = setTimeout(sendState, 60);
+}
+function armIdle() {
+  clearTimeout(idleTimer);
+  if (H.ph !== 'play' || H.paused || !H.turn || H.act) return;
+  const tid = H.tid;
+  idleTimer = setTimeout(() => {
+    if (H.ph === 'play' && !H.paused && !H.act && H.tid === tid) { hlog((H.pl[H.turn] ? H.pl[H.turn].n : '?') + ' took too long. Turn skipped.'); nextTurn(H.turn); bump(); }
+  }, IDLE_MS);
+}
+function nextTurn(after, same) {
+  clearTimeout(advTimer); clearTimeout(rollT); clearTimeout(jTimer); H.act = null; H.tid++;
+  if (same && H.pl[same]) { H.turn = same; armIdle(); return; }
+  const ids = H.order, n = ids.length; if (!n) { H.turn = null; return; }
+  let i = after == null ? -1 : ids.indexOf(after);
+  for (let c = 0; c < n * 2; c++) {
+    i = (i + 1) % n;
+    if (!online(ids[i])) continue;
+    H.turn = ids[i]; armIdle(); return;
+  }
+  H.turn = null;
+}
+function endGame(w) {
+  clearTimeout(advTimer); clearTimeout(qTimer); clearTimeout(idleTimer); clearTimeout(jTimer); clearTimeout(rollT);
+  if (H.ph === 'play') H.remMs = remMs();
+  H.ph = 'end'; H.win = w; H.paused = false; if (H.act && H.act.st !== 'r') H.act = null; secret = null;
+  hlog(w === 'team' ? 'The pawn reached the exit! The team escaped.' : w === 'traitors' ? 'Time is up! The Upside Down wins.' : 'The game was ended by the host.');
+}
+function hostOnMsg(m) {
+  if (m.f === 'h' || !m.f) return;
+  const now = Date.now(); let p = H.pl[m.f];
+  if (m.t === 'join') {
+    const name = String((m.d && m.d.n) || 'Player').slice(0, 14);
+    if (!p) { p = H.pl[m.f] = newPlayer(name, now); H.order.push(m.f); hlog(name + ' joined.'); if (H.ph === 'play' && !H.turn) nextTurn(null); }
+    else { p.n = name; p.seen = now; }
+    sendRole(m.f);
+    return bump();
+  }
+  if (!p) return sendState();
+  p.seen = now;
+  if (m.t === 'hello') { sendRole(m.f); return sendState(); }
+  if (m.t === 'ping') { if (hOnline[m.f] === false) { hOnline[m.f] = true; bump(); } return; }
+  const d = m.d || {};
+  if (m.t === 'conf') {
+    if (H.ph === 'abil') {
+      if (p.ab.backpack !== undefined) {
+        const w = [...new Set((d.w || []).filter(x => x !== m.f && H.pl[x]))].slice(0, 2);
+        if (w.length < Math.min(2, H.order.length - 1)) return;
+        p.bp.w = w;
+      }
+      p.ok = true; return bump();
+    }
+    if (H.ph === 'role') { p.ok = true; return bump(); }
+    return;
+  }
+  if (H.ph !== 'play' || H.paused) return;
+  if (m.t === 'bp') {
+    if (!(p.ab.backpack > 0) || p.bp.pts <= 0) return;
+    const pts = p.bp.pts; p.ab.backpack = 0; H.pos = Math.min(H.N - 1, H.pos + pts);
+    hlog(`🎒 ${p.n} cashes in the backpack: the pawn moves ${pts} cells forward.`);
+    if (H.pos >= H.N - 1) endGame('team');
+    return bump();
+  }
+  if (m.t === 'use') {
+    if (m.f !== H.turn || H.act || d.tid !== H.tid) return;
+    const ab = d.ab || null;
+    if (ab) {
+      const info = SD.ABILITIES[ab];
+      if (!info || info.mode !== 'turn' || !(p.ab[ab] > 0)) return;
+      if (ab === 'elephant' && p.hist.length < 2) return;
+    }
+    clearTimeout(idleTimer);
+    const a = H.act = { aid: ++H.aid, pid: m.f, ab, st: 'c' }; clearTimeout(advTimer);
+    rollT = setTimeout(() => { if (H.act && H.act.aid === a.aid && H.act.st === 'c' && !H.paused) doRoll(H.act); }, ROLL_MS);
+    return bump();
+  }
+  if (m.t === 'roll') {
+    const a = H.act; if (!a || a.st !== 'c' || a.pid !== m.f || d.aid !== a.aid) return;
+    return doRoll(a);
+  }
+  if (m.t === 'jp') {
+    const a = H.act; if (!a || a.st !== 'j' || d.aid !== a.aid || a.pid === m.f) return;
+    if (!(p.ab.judger > 0) || (d.g !== 'c' && d.g !== 'w')) return;
+    a.jp = { pid: m.f, g: d.g }; return askQuestion(a);
+  }
+  if (m.t === 'swap') {
+    const a = H.act; if (!a || a.st !== 'q' || a.pid !== m.f || d.aid !== a.aid || a.ab !== 'tech' || a.sw || !secret) return;
+    a.sw = 1; const q = pickQ(secret.L); secret.q = q; secret.correct = q.correct;
+    const left = Math.max(5000, a.ms - (Date.now() - a.ts)); a.ms = left; a.ts = Date.now();
+    clearTimeout(qTimer); qTimer = setTimeout(() => resolve(-1, -1), left + 3000);
+    sendQ(a, q, left, secret.L, false); return bump();
+  }
+  if (m.t === 'ans') {
+    const a = H.act; if (!a || a.st !== 'q' || a.pid !== m.f || d.aid !== a.aid) return;
+    resolve(+d.i, d.j == null ? -1 : +d.j);
+  }
+}
+function doRoll(a) {
+  clearTimeout(rollT);
+  a.d = [1 + rnd(6), 1 + rnd(6)]; a.t = a.d[0] + a.d[1];
+  const elig = H.order.filter(id => id !== a.pid && H.pl[id].ab.judger > 0 && online(id));
+  if (elig.length) {
+    a.st = 'j'; const aid = a.aid; clearTimeout(jTimer);
+    jTimer = setTimeout(() => { if (H.act && H.act.aid === aid && H.act.st === 'j') askQuestion(H.act); }, JUDGE_MS);
+    return bump();
+  }
+  askQuestion(a);
+}
+const usedQ = { 1: new Set(), 2: new Set(), 3: new Set() };
+function pickQ(L) {
+  const pool = SD.QUESTIONS[L]; let free = pool.map((_, i) => i).filter(i => !usedQ[L].has(i));
+  if (!free.length) { usedQ[L].clear(); free = pool.map((_, i) => i); }
+  const i = free[rnd(free.length)]; usedQ[L].add(i);
+  const [text, right, wrong] = pool[i], opts = shuffle([right, ...wrong]);
+  return { text, opts, correct: opts.indexOf(right), all: [right, ...wrong] };
+}
+function memoryQ(p) {
+  const h = p.hist; if (h.length < 2) return null;
+  const last = h[h.length - 1], prev = h[h.length - 2], k = ['lvl', 'lvl', 'ans', 'word', 'dice', 'res'][rnd(6)];
+  const mk = (text, right, wrong) => { const opts = shuffle([right, ...wrong]); return { text, opts, correct: opts.indexOf(right), all: opts }; };
+  if (k === 'lvl') { const e = rnd(2) ? last : prev, w = e === last ? 'last' : 'second-to-last'; return mk(`What was the level of your ${w} vocabulary question?`, LVN[e.lv], Object.values(LVN).filter(x => x !== LVN[e.lv])); }
+  if (k === 'ans') return mk('What was the correct answer to your last vocabulary question?', last.right, last.wrong.slice(0, 3));
+  if (k === 'word') { const all = [].concat(...Object.values(SD.QUESTIONS)).map(x => x[0]).filter(t => t !== last.text); return mk('Which question did you get last?', last.text, shuffle(all).slice(0, 3)); }
+  if (k === 'dice') { const s = new Set(); while (s.size < 3) { const x = 2 + rnd(11); if (x !== last.total) s.add(x); } return mk('What was your dice total on your last vocabulary question?', String(last.total), [...s].map(String)); }
+  return mk('Did you answer your last vocabulary question correctly?', last.ok ? 'Yes' : 'No', [last.ok ? 'No' : 'Yes']);
+}
+function sendQ(a, q, ms, L, mem) {
+  hNet.send({ f: 'h', t: 'q', to: a.pid, d: { aid: a.aid, text: q.text, opts: q.opts, ms, L, mem: mem ? 1 : 0, dr: a.ab === 'drama' ? 1 : 0, sw: a.ab === 'tech' && !a.sw ? 1 : 0 } });
+}
+function askQuestion(a) {
+  clearTimeout(jTimer);
+  const p = H.pl[a.pid]; let q = null, mem = false;
+  if (a.ab === 'elephant') { q = memoryQ(p); mem = !!q; }
+  if (!q) q = pickQ(p.lv);
+  if (a.ab === 'over' && !mem && q.opts.length >= 4) {
+    const right = q.opts[q.correct], keep = shuffle(q.opts.filter((_, i) => i !== q.correct)).slice(0, 1);
+    q.opts = shuffle([right, ...keep]); q.correct = q.opts.indexOf(right);
+  }
+  const L = p.lv;
+  let ms = LIM[mem ? 2 : L] * 1000; if (a.ab === 'frozen') ms += 5000; ms = Math.max(5000, ms - H.cut); H.cut = 0;
+  secret = { aid: a.aid, correct: q.correct, q, L, mem };
+  a.st = 'q'; a.ms = ms; a.ts = Date.now();
+  sendQ(a, q, ms, L, mem);
+  clearTimeout(qTimer); qTimer = setTimeout(() => resolve(-1, -1), ms + 3000);
+  bump();
+}
+function resolve(i, j) {
+  const a = H.act; if (!a || a.st !== 'q' || !secret) return;
+  clearTimeout(qTimer);
+  const p = H.pl[a.pid], tot = a.t, ab = a.ab, sc = secret; secret = null;
+  const ok = i >= 0 && (i === sc.correct || (ab === 'drama' && j >= 0 && j === sc.correct));
+  const parts = [];
+  if (ok) {
+    const steps = ab === 'runner' ? tot * 2 : tot;
+    if (!sc.mem) p.lv = Math.max(1, p.lv - 1);
+    H.pos = Math.min(H.N - 1, H.pos + steps);
+    parts.push(`Correct! The pawn moves ${steps} cells forward${ab === 'runner' ? ' (Runner: double)' : ''}.`);
+    H.order.forEach(id => { const q = H.pl[id]; if (q.ab.backpack > 0 && (id === a.pid || q.bp.w.includes(a.pid))) q.bp.pts++; });
+    const tk = H.pos < H.N - 1 ? H.traps[H.pos] : null;
+    if (tk) {
+      const t = SD.TRAPS[tk]; parts.push(`${t.icon} ${t.name}! ${t.text}`);
+      if (t.kind === 'harder') p.lv = Math.min(3, p.lv + 1);
+      else if (t.kind === 'less') H.cut += t.val * 1000;
+      else if (t.kind === 'back') H.pos = Math.max(0, H.pos - t.val);
+      else if (t.kind === 'fwd') H.pos = Math.min(H.N - 1, H.pos + t.val);
+    }
+  } else {
+    if (!sc.mem) p.lv = Math.min(3, p.lv + 1);
+    const lead = i === -1 ? "Time's up! " : 'Wrong! ';
+    if (ab && ab !== 'runner') { const back = Math.floor(tot / 2); H.pos = Math.max(0, H.pos - back); parts.push(lead + `The pawn goes back ${back} cells.`); }
+    else parts.push(lead + (ab === 'runner' ? 'Runner: no penalty.' : 'Nothing happens.'));
+  }
+  if (a.jp && H.pl[a.jp.pid]) {
+    const jq = H.pl[a.jp.pid]; jq.ab.judger = 0;
+    const pred = a.jp.g === 'c', right = pred === ok, mv = tot * 2;
+    H.pos = right ? Math.min(H.N - 1, H.pos + mv) : Math.max(0, H.pos - mv);
+    parts.push(`⚖ ${jq.n} (Judger) predicted "${pred ? 'correct' : 'wrong'}" and was ${right ? 'RIGHT' : 'WRONG'}: the pawn moves ${mv} cells ${right ? 'forward' : 'back'}.`);
+  }
+  if (ab && p.ab[ab] !== undefined) p.ab[ab] = 0;
+  if (!sc.mem) { p.hist.push({ lv: sc.L, text: sc.q.text, right: sc.q.all[0], wrong: sc.q.all.slice(1), total: tot, ok }); if (p.hist.length > 20) p.hist.shift(); }
+  const txt = parts.join(' ');
+  a.st = 'r'; a.res = { ok: ok ? 1 : 0, txt };
+  hlog(`${p.n}: ${txt}`);
+  if (H.pos >= H.N - 1) endGame('team');
+  else if (H.auto) advTimer = setTimeout(() => { nextTurn(a.pid); bump(); }, NEXT_MS);
+  bump();
+}
+
+/* ---------- host UI ---------- */
+function joinUrl() { return location.origin === 'null' ? location.href.split('?')[0] + '?r=' + H.room : location.origin + location.pathname + '?r=' + H.room; }
+function hostSkeleton() {
+  app.innerHTML = `<div class="status" id="status">Connecting…</div>${head}
+  <div class="panel glow" id="hhead"></div>
+  <div class="panel" id="htr" hidden></div>
+  <div id="hscene"></div>
+  <div class="panel" id="hturn"></div>
+  <div class="panel" id="hact"></div>
+  <div class="panel" id="hpawn"></div>
+  <div id="hboardbox" class="panel"></div>
+  <div class="panel"><h2>Events</h2><div id="hlog"></div></div>
+  <div class="panel"><details id="hplayers" open><summary>Players</summary><div id="hpl" class="plist" style="margin-top:10px"></div></details></div>
+  <div class="panel row" id="hmisc"></div>`;
+  app.addEventListener('click', hostClick); app.addEventListener('change', hostChange);
+  paintStatus(); hostRender(true);
+}
+const allConfirmed = () => H.order.filter(online).every(id => H.pl[id].ok);
+const confCount = () => `${H.order.filter(id => H.pl[id].ok).length}/${H.order.length}`;
+function hostRender() {
+  if (role !== 'host') return;
+  const st = pub(), url = joinUrl(), play = H.ph === 'play', ph = H.ph;
+  let hh = '';
+  if (ph === 'lobby') hh = `
+    <h2>Room · ${H.order.length} player${H.order.length === 1 ? '' : 's'}</h2>
+    <div class="code" id="roomCode">${esc(H.room)}</div>
+    <div class="qr">${qrSvg(url)}</div>
+    <div class="link" id="joinLink">${esc(url)}</div>
+    <div class="row"><button class="btn ghost small" data-h="copy" type="button">Copy link</button>
+    <button class="btn ghost small" data-h="auto" type="button">Auto-assign abilities</button></div>
+    <button class="btn block" data-h="deal" type="button" ${H.order.length && H.order.every(id => Object.keys(H.pl[id].ab).length) ? '' : 'disabled'}>Deal abilities →</button>
+    <p class="muted">Give every player at least one ability, then deal. Each ability can be used once per game. Players read their abilities and press Confirm.</p>`;
+  else if (ph === 'abil') hh = `
+    <h2>Step 1 · Abilities</h2>
+    <p>Players are reading their abilities. Confirmed: <b>${confCount()}</b></p>
+    <div class="row"><button class="btn ghost small" data-h="force" type="button">Skip waiting</button><button class="btn ghost small" data-h="lobby" type="button">Back to lobby</button></div>`;
+  else if (ph === 'role') hh = `
+    <h2>Step 3 · Roles</h2>
+    <p>Roles are on the players' phones. Confirmed: <b>${confCount()}</b></p>
+    <p class="warn">Traitors (GM only): ${H.tr.length ? H.tr.map(id => esc(H.pl[id] ? H.pl[id].n : '?')).join(', ') : 'none'}</p>
+    <div class="row"><button class="btn small grow" data-h="start" type="button" ${allConfirmed() ? '' : 'disabled'}>Start game (10:00)</button><button class="btn ghost small" data-h="force" type="button">Skip waiting</button></div>`;
+  else if (play) hh = `
+    <div class="row"><b>Room <span dir="ltr">${esc(H.room)}</span></b><span class="grow"></span><div class="clock" id="gclock">--:--</div></div>
+    <div class="row"><button class="btn ghost small" data-h="pause" type="button">${H.paused ? '▶ Resume' : '⏸ Pause'}</button><span class="muted">${st.pl.filter(p => p.o).length}/${H.order.length} online</span></div>
+    <p class="warn" style="margin:0">Traitors (GM only): ${H.tr.length ? H.tr.map(id => esc(H.pl[id] ? H.pl[id].n : '?')).join(', ') : 'none'}</p>`;
+  else hh = `
+    <h2>${H.win === 'team' ? 'The team escaped!' : H.win === 'traitors' ? 'The Upside Down wins!' : 'Game over'}</h2>
+    <p>Traitors were: <b>${H.tr.length ? H.tr.map(id => esc(H.pl[id] ? H.pl[id].n : '?')).join(', ') : 'nobody'}</b></p>
+    <button class="btn block" data-h="lobby" type="button">New round (back to lobby)</button>`;
+  $('hhead').innerHTML = hh;
+  // traitor picking panel
+  const tp = $('htr');
+  if (ph === 'abil') {
+    tp.hidden = false;
+    const maxT = Math.max(1, Math.floor(H.order.length / 2));
+    tp.innerHTML = `<h2>Step 2 · Traitors</h2>
+      <div class="row"><span class="grow">Number of traitors</span><button class="btn ghost small" data-h="ntr:-1" type="button">−</button><b style="min-width:24px;text-align:center">${H.ntr}</b><button class="btn ghost small" data-h="ntr:1" type="button">+</button></div>
+      ${H.trCand.length || H.trPicked ? `<p>Chosen by the game: <b class="warn">${H.trCand.length ? H.trCand.map(id => esc(H.pl[id] ? H.pl[id].n : '?')).join(', ') : 'nobody'}</b></p>
+      <div class="row"><button class="btn small grow" data-h="approve" type="button">Approve</button><button class="btn ghost small" data-h="respin" type="button">🎲 Re-spin</button></div>` :
+      `<button class="btn block" data-h="pick" type="button" ${allConfirmed() ? '' : 'disabled'}>Pick traitors at random</button><p class="muted">Available when everybody has confirmed their abilities (max ${maxT}).</p>`}`;
+  } else tp.hidden = true;
+  const keep = document.activeElement && $('hscene') && $('hscene').contains(document.activeElement);
+  if (!keep) $('hscene').innerHTML = play || ph === 'end' ? sceneBlockHost(st) : '';
+  $('hturn').innerHTML = play ? turnBlockHost(st) : '';
+  $('hact').innerHTML = play || ph === 'end' ? actBlockHost(st) : '';
+  $('hturn').hidden = !play; $('hact').hidden = !(play || ph === 'end');
+  $('hpawn').hidden = !play;
+  $('hpawn').innerHTML = play ? `<h2>Pawn</h2><div class="row"><button class="btn ghost small" data-h="pos:-5" type="button">−5</button><button class="btn ghost small" data-h="pos:-1" type="button">−1</button><span class="grow" style="text-align:center">Cell ${H.pos} of ${H.N - 1}</span><button class="btn ghost small" data-h="pos:1" type="button">+1</button><button class="btn ghost small" data-h="pos:5" type="button">+5</button></div>` : '';
+  const bb = $('hboardbox');
+  if (ph === 'lobby' || ph === 'abil') bb.hidden = true; else { bb.hidden = false; if (!bb.firstChild || !$('board')) { bb.innerHTML = boardBlock(st); Board.key = ''; } boardUpdate(st); }
+  $('hlog').innerHTML = '<div class="logbox">' + H.log.slice().reverse().slice(0, 30).map(x => `<div class="${x[1] ? 'warn' : ''}">• ${esc(x[0])}</div>`).join('') + '</div>';
+  $('hpl').innerHTML = H.order.map(id => playerRowHost(id, st)).join('') || '<p class="muted">Nobody has joined yet.</p>';
+  $('hmisc').innerHTML = `<button class="btn ghost small" data-h="lobby" type="button">Back to lobby</button><button class="btn ghost small" data-h="end" type="button">End game</button><button class="btn ghost small" data-h="reset" type="button">New room</button>`;
+  if (hostRender.lastPh !== ph) { $('hplayers').open = ph === 'lobby' || ph === 'abil'; hostRender.lastPh = ph; }
+  if (play) setClock(remMs(), H.paused);
+}
+function sceneBlockHost(st) {
+  const s = sceneOf(H.sc), keys = Object.keys(SD.SCENES);
+  return sceneHtml(st) + `<div class="panel" style="margin-top:10px">
+    ${s.gm ? `<div class="warn">GM note: ${esc(s.gm)}</div>` : ''}
+    <div class="chips">${(s.choices || []).map(c => `<button class="btn small" data-h="goto:${esc(c.to)}" type="button">${esc(c.label)}</button>`).join('') || '<span class="muted">This scene has no next choices.</span>'}</div>
+    <label class="muted" for="sceneSel">Jump to scene</label>
+    <select id="sceneSel" data-hc="scene">${keys.map(k => `<option value="${esc(k)}" ${k === H.sc ? 'selected' : ''}>${esc(SD.SCENES[k].title)}</option>`).join('')}</select>
+    <label class="muted" for="noteTxt">Live message for everyone (narration)</label>
+    <textarea id="noteTxt" maxlength="300" placeholder="e.g. The Demogorgon is standing in front of you…">${esc(H.note)}</textarea>
+    <div class="row"><button class="btn small" data-h="note" type="button">Show to everyone</button><button class="btn ghost small" data-h="clearnote" type="button">Clear</button></div></div>`;
+}
+function turnBlockHost(st) {
+  const cur = st.turn ? pname(st, st.turn) : 'nobody';
+  return `<h2>Turn: ${esc(cur)}</h2>
+  <div class="row"><select id="giveTurn" data-hc="turn" class="grow"><option value="">Give the turn to…</option>${st.pl.map(p => `<option value="${p.i}">${esc(p.n)}${p.o ? '' : ' (offline)'}</option>`).join('')}</select>
+  <button class="btn ghost small" data-h="skip" type="button">Skip turn</button></div>
+  <label class="row"><input type="checkbox" id="autoChk" data-hc="auto" ${H.auto ? 'checked' : ''} style="width:20px;height:20px"> Next turn automatically (${NEXT_MS / 1000} s after the result)</label>`;
+}
+function actBlockHost(st) {
+  const a = H.act;
+  if (H.ph === 'end') return `<h2>Game over</h2><p>${H.win === 'team' ? 'The pawn reached the exit in time.' : H.win === 'traitors' ? 'The clock ran out.' : 'Ended by the host.'}</p>`;
+  if (!a) return '<h2>Current action</h2><p class="muted">Waiting for the player to choose…</p>';
+  let h = `<h2>Action: ${esc(pname(st, a.pid))}${a.ab ? ' · ' + esc(abInfo(a.ab).name) : ' · plain move'}</h2>`;
+  if (a.d) h += diceHtml(a.d) + `<div class="total">Total: <b>${a.t}</b></div>`;
+  if (a.st === 'c') h += '<p class="muted">Waiting for the dice roll…</p>';
+  if (a.st === 'j') h += '<p class="muted">Judger window: a Judger may predict the answer…</p>';
+  if (a.st === 'q' && secret) h += `<div><b>Question (only you can see the answer):</b><br>${esc(secret.q.text)}<br>${secret.q.opts.map((o, i) => `<span class="${i === secret.correct ? 'good' : 'muted'}">${i === secret.correct ? '✔ ' : '• '}${esc(o)}</span>`).join('<br>')}</div>`;
+  if (a.st === 'r') h += `<div class="result ${a.res.ok ? 'good' : 'bad'}">${esc(a.res.txt)}</div><button class="btn small" data-h="next" type="button">Next turn</button>`;
+  return h;
+}
+function playerRowHost(id, st) {
+  const p = H.pl[id], me = st.pl.find(x => x.i === id), lobby = H.ph === 'lobby';
+  const tag = H.tr.includes(id) && H.ph !== 'lobby' && H.ph !== 'abil' ? '<span class="pill bad">TRAITOR</span>' : '';
+  const chips = lobby ?
+    Object.keys(SD.ABILITIES).map(k => `<label class="chk"><input type="checkbox" data-hc="ab" data-pid="${id}" data-k="${k}" ${k in p.ab ? 'checked' : ''}> ${esc(SD.ABILITIES[k].name)}</label>`).join('') :
+    Object.keys(p.ab).map(k => `<span class="chk ${p.ab[k] > 0 ? '' : 'muted'}">${esc(SD.ABILITIES[k].name)}${p.ab[k] > 0 ? '' : ' (used)'}${k === 'backpack' ? ` · ${p.bp.pts} pts · friends: ${p.bp.w.map(x => esc(H.pl[x] ? H.pl[x].n : '?')).join(', ') || '—'}` : ''}</span>`).join('');
+  return `<div class="pitem${H.turn === id ? ' turn' : ''}"><div class="row"><span class="dot${me.o ? ' on' : ''}"></span><b class="grow">${esc(p.n)}</b>${tag}${p.ok && (H.ph === 'abil' || H.ph === 'role') ? '<span class="pill good">✓ confirmed</span>' : ''}${H.ph === 'play' ? `<span class="pill ${p.lv === 1 ? 'good' : p.lv === 2 ? 'warn' : 'bad'}">${LVN[p.lv]}</span>` : ''}<button class="btn ghost small" data-h="kick:${id}" type="button">Remove</button></div>
+  <div class="chips">${chips || '<span class="muted">No abilities yet.</span>'}</div></div>`;
+}
+function pickTraitors() {
+  let c = H.order.filter(id => online(id) && !H.trRej.includes(id));
+  if (c.length < H.ntr) { H.trRej = []; c = H.order.filter(online); }
+  H.trCand = shuffle(c).slice(0, Math.min(H.ntr, c.length)); H.trPicked = 1;
+}
+function resetRound() {
+  clearTimeout(advTimer); clearTimeout(qTimer); clearTimeout(idleTimer); clearTimeout(jTimer); clearTimeout(rollT); secret = null;
+  H.ph = 'lobby'; H.act = null; H.tid++; H.turn = null; H.pos = 0; H.tr = []; H.trCand = []; H.trRej = []; H.trPicked = 0; H.win = null; H.paused = false; H.remMs = GAME_MS; H.cut = 0;
+  H.order.forEach(id => { const p = H.pl[id]; p.ok = false; });
+}
+function hostClick(e) {
+  const b = e.target.closest('[data-h]'); if (!b || role !== 'host') return;
+  const [k, v] = b.dataset.h.split(':');
+  if (k === 'copy') { const t = joinUrl(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { b.textContent = 'Copy the link by hand'; }); return; }
+  if (k === 'auto') {
+    const keys = Object.keys(SD.ABILITIES); let deck = shuffle(keys);
+    H.order.forEach(id => { const p = H.pl[id]; p.ab = {}; while (Object.keys(p.ab).length < Math.min(2, keys.length)) { if (!deck.length) deck = shuffle(keys); p.ab[deck.pop()] = 1; } });
+    return bump();
+  }
+  if (k === 'deal') {
+    H.order.forEach(id => { const p = H.pl[id]; Object.keys(p.ab).forEach(x => { p.ab[x] = 1; }); p.ok = false; p.hist = []; p.lv = 2; p.bp = { w: [], pts: 0 }; });
+    H.ph = 'abil'; H.tr = []; H.trCand = []; H.trRej = []; H.trPicked = 0; hlog('Abilities dealt.'); return bump();
+  }
+  if (k === 'force') { H.order.forEach(id => { H.pl[id].ok = true; }); return bump(); }
+  if (k === 'ntr') { H.ntr = Math.max(0, Math.min(Math.max(1, Math.floor(H.order.length / 2)), H.ntr + +v)); H.trCand = []; H.trPicked = 0; return bump(); }
+  if (k === 'pick') { pickTraitors(); return bump(); }
+  if (k === 'respin') { H.trRej.push(...H.trCand); pickTraitors(); return bump(); }
+  if (k === 'approve') {
+    H.tr = H.trCand.slice(); H.trCand = []; H.trPicked = 0; H.ph = 'role';
+    H.order.forEach(id => { H.pl[id].ok = false; }); hlog(`Roles dealt (${H.tr.length} traitor${H.tr.length === 1 ? '' : 's'}).`, true); sendRoles(); return bump();
+  }
+  if (k === 'start') {
+    H.ph = 'play'; H.sc = SD.FIRST_SCENE; H.note = ''; H.pos = 0; H.cut = 0; H.paused = false; H.remMs = GAME_MS; H.endAt = Date.now() + GAME_MS; H.win = null;
+    hlog('The game has started! You have 10 minutes.'); nextTurn(null); sendRoles(); return bump();
+  }
+  if (k === 'pause') {
+    if (H.paused) { H.endAt = Date.now() + H.remMs; H.paused = false; hlog('Game resumed.'); armIdle(); }
+    else if (!H.act || H.act.st === 'r') { H.remMs = remMs(); H.paused = true; clearTimeout(idleTimer); hlog('Game paused by the host.'); }
+    else { hlog('You can pause only between turns.', true); }
+    return bump();
+  }
+  if (k === 'goto') { H.sc = v; H.note = ''; hlog('Scene: ' + sceneOf(v).title); return bump(); }
+  if (k === 'note') { H.note = ($('noteTxt').value || '').slice(0, 300); return bump(); }
+  if (k === 'clearnote') { H.note = ''; return bump(); }
+  if (k === 'pos') { H.pos = Math.max(0, Math.min(H.N - 1, H.pos + +v)); hlog('The host moved the pawn.'); if (H.pos >= H.N - 1) endGame('team'); return bump(); }
+  if (k === 'skip' || k === 'next') { nextTurn(H.turn); return bump(); }
+  if (k === 'kick') { delete H.pl[v]; H.order = H.order.filter(x => x !== v); H.tr = H.tr.filter(x => x !== v); H.trCand = H.trCand.filter(x => x !== v); if (H.turn === v) nextTurn(null); return bump(); }
+  if (k === 'lobby') { resetRound(); return bump(); }
+  if (k === 'end') { if (H.ph === 'play' || H.ph === 'role' || H.ph === 'abil') endGame('abort'); return bump(); }
+  if (k === 'reset') { if (b.dataset.sure) { store.del('sd-h-' + H.room); store.del('sd-host-room'); location.href = location.pathname; } else { b.dataset.sure = 1; b.textContent = 'Sure? Tap again'; } }
+}
+function hostChange(e) {
+  const t = e.target, k = t.dataset.hc; if (!k || role !== 'host') return;
+  if (k === 'scene') { H.sc = t.value; H.note = ''; return bump(); }
+  if (k === 'turn') { if (t.value) { clearTimeout(advTimer); clearTimeout(rollT); H.act = null; H.tid++; H.turn = t.value; armIdle(); bump(); } return; }
+  if (k === 'auto') { H.auto = t.checked; return bump(); }
+  const p = H.pl[t.dataset.pid]; if (!p) return;
+  if (k === 'ab') { if (t.checked) p.ab[t.dataset.k] = 1; else delete p.ab[t.dataset.k]; return bump(); }
+}
+
+/* ====================== PLAYER ====================== */
+let me = null, PS = null, qmsg = null, myRole = null, lastHost = 0, qTick = null, qSeq = 0, bpSel = new Set(), roleShown = false, jDone = 0;
+function playerStart(room) {
+  role = 'player';
+  let pid = store.get('sd-pid'); if (!pid) { pid = pidShort(); store.set('sd-pid', pid); }
+  me = { room, pid, name: store.get('sd-name') || '' };
+  app.innerHTML = `${head}<div class="panel"><h2>Join room <span dir="ltr">${esc(room)}</span></h2>
+    <label class="muted" for="pname">Your name</label>
+    <input type="text" id="pname" maxlength="14" autocomplete="off" value="${esc(me.name)}" placeholder="e.g. Dustin">
+    <button class="btn block" id="doJoin" type="button">Join</button></div>`;
+  $('doJoin').onclick = () => { const n = $('pname').value.trim(); if (!n) return $('pname').focus(); me.name = n; store.set('sd-name', n); playerGo(); };
+  if (me.name && Q.get('auto') !== '0' && store.get('sd-joined-' + room)) playerGo();
+}
+function playerGo() {
+  store.set('sd-joined-' + me.room, '1');
+  app.innerHTML = `<div class="status" id="status">Connecting…</div>${head}
+  <div id="pwait" class="panel"><h2>Looking for the host…</h2><p class="muted">If this takes more than a few seconds, check the room code and make sure the host's screen is open.</p><p class="muted" dir="ltr" id="pdiag"></p></div>
+  <div id="pgame" hidden>
+    <div class="panel glow" id="pclockbox"></div>
+    <div class="panel" style="margin-top:12px" id="paction"></div>
+    <div id="pextra"></div>
+    <div style="margin-top:12px" id="pscene"></div>
+    <div class="panel" style="margin-top:12px" id="pboardbox"></div>
+    <div class="panel" style="margin-top:12px"><h3>Events</h3><div id="plog"></div></div>
+    <div class="panel" style="margin-top:12px" id="pabs"></div>
+    <div class="panel" style="margin-top:12px" id="prole"></div>
+  </div>
+  <div class="sheet" id="psheet" hidden></div>
+  <div class="win" id="pend" hidden></div>`;
+  let pOk = 0;
+  net = Net(me.room, playerOnMsg, (s, d) => {
+    const el = $('status'); if (el) { el.className = 'status' + (s === 'on' ? '' : ' off'); el.textContent = statText(s, d); }
+    const dg = $('pdiag'); if (dg) dg.textContent = relayLine(d);
+    const more = okCount(d) > pOk; pOk = okCount(d);
+    if (more && net) { net.send({ f: me.pid, t: 'join', d: { n: me.name } }); }
+  });
+  net.send({ f: me.pid, t: 'join', d: { n: me.name } });
+  setInterval(() => {
+    if (!PS) net.send({ f: me.pid, t: 'join', d: { n: me.name } }, 1);
+    else if ((PS.ph === 'role' || PS.ph === 'play') && !myRole) net.send({ f: me.pid, t: 'hello' }, 1);
+  }, 3000);
+  setInterval(() => net.send({ f: me.pid, t: 'ping' }, 1), 30000);
+  setInterval(() => { const el = $('status'); if (el && lastHost && Date.now() - lastHost > 80000) { el.className = 'status off'; el.textContent = 'The host is not answering'; } }, 5000);
+  app.addEventListener('click', playerClick);
+}
+function playerOnMsg(m) {
+  if (m.f !== 'h') return;
+  lastHost = Date.now();
+  if (m.to && m.to !== me.pid) return;
+  if (m.t === 'q') { qmsg = Object.assign({ at: Date.now(), pick: -1, picks: [] }, m.d, { rid: ++qSeq }); return paint(); }
+  if (m.t === 'role') { myRole = m.d; return paint(); }
+  if (m.t === 'st') { if (!PS || m.d.v >= PS.v) { PS = m.d; paint(); } }
+}
+const roleCardHtml = () => {
+  const t = myRole.r === 't', R = SD.ROLES[t ? 'traitor' : 'team'];
+  return `<div class="rolecard ${t ? 't' : ''}"><h2>${esc(R.title)}</h2><p>${esc(R.en)}</p><h2 class="fa" dir="rtl" lang="fa">${esc(R.titleFa)}</h2><p class="fa" dir="rtl" lang="fa">${esc(R.fa)}</p>
+  ${t ? `<p class="warn">${myRole.mates.length ? 'Your partners: <b>' + myRole.mates.map(esc).join(', ') + '</b>' : 'You are the only traitor.'}</p>` : ''}</div>`;
+};
+function abilCard(k, mine, clickable) {
+  const i = abInfo(k), u = mine.a[k], dead = !(u > 0);
+  let off = dead || (clickable && (i.mode !== 'turn' || (k === 'elephant' && mine.hc < 2)));
+  const note = dead ? 'Used' : i.mode === 'other' ? "Used on another player's turn" : i.mode === 'passive' ? 'Works by itself' : k === 'elephant' && mine.hc < 2 && clickable ? 'Needs 2 answered questions' : 'Ready';
+  const inner = `<b>${esc(i.name)} <span class="pill ${dead ? 'bad' : 'good'}">${note}</span></b><span class="muted">${esc(i.en)}</span>${faLine(i.fa)}`;
+  if (!clickable) return `<div class="abil card${dead ? ' dead' : ''}">${inner}</div>`;
+  return `<button class="abil" ${!off ? `data-p="use:${esc(k)}"` : 'disabled'} type="button">${inner}</button>`;
+}
+function paint() {
+  const st = PS; if (!st) return;
+  const mine = st.pl.find(p => p.i === me.pid);
+  if (!mine) { net.send({ f: me.pid, t: 'join', d: { n: me.name } }); return; }
+  const lobbyish = st.ph === 'lobby' || st.ph === 'abil' || st.ph === 'role';
+  $('pwait').hidden = !lobbyish; $('pgame').hidden = lobbyish;
+  if (lobbyish) { $('pend').hidden = true; $('psheet').hidden = true; clearInterval(qTick); qmsg = null; }
+  if (st.ph === 'lobby') {
+    roleShown = false; bpSel = new Set();
+    $('pwait').innerHTML = `<h2>Waiting for the game to start</h2><p class="muted">The host will deal the abilities when everyone has joined.</p>
+      <div class="chips">${st.pl.map(p => `<span class="chk"><span class="dot${p.o ? ' on' : ''}"></span>${esc(p.n)}${p.i === me.pid ? ' (you)' : ''}</span>`).join('')}</div>`;
+    return;
+  }
+  if (st.ph === 'abil') {
+    myRole = null; roleShown = false;
+    const keys = Object.keys(mine.a), hasBp = 'backpack' in mine.a, others = st.pl.filter(p => p.i !== me.pid), need = Math.min(2, others.length);
+    if (mine.c) { $('pwait').innerHTML = `<h2>Confirmed ✓</h2><p class="muted">Waiting for the other players… (${st.pl.filter(p => p.c).length}/${st.pl.length})</p>`; return; }
+    $('pwait').innerHTML = `<h2>Your abilities <span class="fa" dir="rtl" lang="fa">· توانایی‌های تو</span></h2>
+      <p class="muted">Each ability can be used once per game. Read them, then confirm. ${faLine('هر توانایی فقط یک بار در کل بازی قابل استفاده است. بخوان و تأیید کن.')}</p>
+      ${keys.map(k => abilCard(k, mine, false)).join('') || '<p class="muted">You have no abilities.</p>'}
+      ${hasBp ? `<h3>Backpack: choose ${need} friend${need === 1 ? '' : 's'} <span class="fa" dir="rtl" lang="fa">· دوست‌هایت را انتخاب کن</span></h3><div class="chips">${others.map(p => `<button class="btn small ${bpSel.has(p.i) ? '' : 'ghost'}" data-p="bps:${p.i}" type="button">${bpSel.has(p.i) ? '✓ ' : ''}${esc(p.n)}</button>`).join('')}</div>` : ''}
+      <button class="btn block" data-p="conf" type="button" ${hasBp && bpSel.size < need ? 'disabled' : ''}>Confirm / تایید</button>`;
+    return;
+  }
+  if (st.ph === 'role') {
+    if (!myRole) { $('pwait').innerHTML = '<h2>Receiving your role…</h2>'; return; }
+    if (mine.c) { $('pwait').innerHTML = `<h2>Ready ✓</h2><p class="muted">Waiting for the other players… (${st.pl.filter(p => p.c).length}/${st.pl.length})</p>`; return; }
+    $('pwait').innerHTML = roleShown ? roleCardHtml() + '<button class="btn block" data-p="rc" type="button">Got it / متوجه شدم</button>'
+      : `<h2>Your role is ready</h2><p class="muted">Make sure nobody is looking at your screen. ${faLine('مطمئن شو کسی به صفحه‌ات نگاه نمی‌کند.')}</p><button class="btn block" data-p="reveal" type="button">Reveal my role / نمایش نقش</button>`;
+    return;
+  }
+  /* ---- play / end ---- */
+  setClock(st.rem, st.pz);
+  $('pclockbox').innerHTML = `<div class="row"><b class="grow">Time left</b><div class="clock" id="gclock">--:--</div></div>${st.pz ? '<p class="warn" style="margin:0">⏸ Paused by the host</p>' : ''}`;
+  $('pscene').innerHTML = sceneHtml(st);
+  const bb = $('pboardbox'); if (!$('board')) { bb.innerHTML = boardBlock(st); Board.key = ''; }
+  boardUpdate(st); $('plog').innerHTML = logHtml(st);
+  const end = $('pend');
+  if (st.ph === 'end' && st.end) {
+    const traitor = myRole && myRole.r === 't', w = st.end.w;
+    const won = w === 'team' ? !traitor : w === 'traitors' ? traitor : false;
+    end.hidden = false;
+    end.innerHTML = `<div><h2>${w === 'team' ? 'YOU ESCAPED!' : w === 'traitors' ? 'THE UPSIDE DOWN WINS' : 'GAME OVER'}</h2>
+      <p>${w === 'team' ? 'The pawn reached the exit in time.' : w === 'traitors' ? 'The clock ran out before the pawn reached the exit.' : 'The host ended the game.'}</p>
+      ${w !== 'abort' ? `<p class="${won ? 'good' : 'bad'}"><b>${won ? 'You win!' : 'You lose.'}</b></p>` : ''}
+      <p class="muted">The traitors were: <b>${st.end.tr.length ? st.end.tr.map(esc).join(', ') : 'nobody'}</b></p></div>`;
+  } else end.hidden = true;
+  const a = st.act, myTurn = st.turn === me.pid, el = $('paction'), sheet = $('psheet');
+  let h = '';
+  if (a && a.st === 'q' && a.pid === me.pid && qmsg && qmsg.aid === a.aid) {
+    if (qmsg.shown !== qmsg.rid) { qmsg.shown = qmsg.rid; startQuestion(); }
+    h = `<h2>Your dice</h2>${diceHtml(a.d)}<div class="total">Total: <b>${a.t}</b></div>`;
+  } else {
+    sheet.hidden = true; clearInterval(qTick);
+    if (a && a.d) h += diceHtml(a.d) + `<div class="total">Total: <b>${a.t}</b></div>`;
+    if (st.ph === 'end' && !(a && a.st === 'r')) h += '<h2>Game over</h2>';
+    else if (st.pz && !(a && a.st === 'r')) h += '<p class="muted">The game is paused.</p>';
+    else if (a && a.st === 'r') h += `<div class="result ${a.res.ok ? 'good' : 'bad'}">${esc(pname(st, a.pid))}: ${esc(a.res.txt)}</div>`;
+    else if (a && a.st === 'j') {
+      const jud = mine.a.judger > 0 && a.pid !== me.pid && jDone !== a.aid;
+      h += jud ? `<h2>⚖ Judger</h2><p>${esc(pname(st, a.pid))} is about to answer a question. Will they answer <b>correctly</b>?</p>
+        <div class="row"><button class="btn grow" data-p="jp:c" type="button">Correct</button><button class="btn grow" data-p="jp:w" type="button">Wrong</button><button class="btn ghost" data-p="jp:s" type="button">Skip</button></div>
+        <p class="muted">Right: the pawn moves ${a.t * 2} cells forward. Wrong: ${a.t * 2} cells back. You can do this once.</p>${faLine('پیش‌بینی درست: مهره ' + a.t * 2 + ' خانه جلو. پیش‌بینی غلط: ' + a.t * 2 + ' خانه عقب. فقط یک بار.')}`
+        : `<p class="muted">${esc(pname(st, a.pid))} rolled ${a.t}. The question is coming…</p>`;
+    }
+    else if (a && a.st === 'q') h += `<p class="muted">${esc(pname(st, a.pid))} is answering the question…</p>`;
+    else if (a && a.st === 'c' && a.pid === me.pid) h += `<h2>${a.ab ? esc(abInfo(a.ab).name) : 'Plain move'}</h2><button class="btn block" data-p="roll" type="button">Roll the dice</button>`;
+    else if (a && a.st === 'c') h += `<p class="muted">${esc(pname(st, a.pid))} chose ${a.ab ? '“' + esc(abInfo(a.ab).name) + '”' : 'a plain move'}…</p>`;
+    else if (!a && myTurn && st.ph === 'play') {
+      const avail = Object.keys(mine.a).filter(k => abInfo(k).mode === 'turn');
+      h += `<h2>Your turn!</h2><p class="muted">Pick an ability, or make a plain move. Then roll the dice. Using an ability is a risk: a wrong answer sends the pawn back (except for Runner).</p>${avail.map(k => abilCard(k, mine, true)).join('')}<button class="abil" data-p="use:" type="button"><b>Plain move</b><span class="muted">No ability. A wrong answer does nothing.</span></button>`;
+    }
+    else if (!a && st.ph === 'play') h += `<p class="muted">It is ${esc(st.turn ? pname(st, st.turn) : 'nobody')}'s turn.</p>`;
+  }
+  el.innerHTML = h;
+  /* extra panels */
+  let ex = '';
+  if (st.ph === 'play' && !st.pz) {
+    if (mine.a.backpack > 0) ex += `<div class="panel" style="margin-top:12px"><h3>🎒 Backpack</h3><p class="muted">Points: <b>${mine.bp.pts}</b>. Cash in once: the pawn moves forward by that many cells.</p><button class="btn small" data-p="bp" type="button" ${mine.bp.pts > 0 ? '' : 'disabled'}>Cash in ${mine.bp.pts} point${mine.bp.pts === 1 ? '' : 's'}</button></div>`;
+  }
+  $('pextra').innerHTML = ex;
+  $('pabs').innerHTML = `<h3>Your abilities <span class="fa" dir="rtl" lang="fa">· توانایی‌های تو</span></h3>${Object.keys(mine.a).map(k => abilCard(k, mine, false)).join('') || '<p class="muted">None.</p>'}`;
+  $('prole').innerHTML = myRole ? `<details><summary>My role / نقش من</summary><div style="margin-top:10px">${roleCardHtml()}</div></details>` : '';
+}
+function startQuestion() {
+  const sh = $('psheet'), q = qmsg; sh.hidden = false; clearInterval(qTick);
+  sh.innerHTML = `<div class="row">${q.mem ? '<span class="pill warn">Memory</span>' : `<span class="pill ${q.L === 1 ? 'good' : q.L === 2 ? 'warn' : 'bad'}">${LVN[q.L]}</span>`}<span class="q-time grow" style="text-align:right" id="qt"></span></div>
+  <div class="bar"><i id="qb"></i></div><p class="q-text" dir="auto">${esc(q.text)}</p>
+  ${q.dr ? '<p class="muted" style="margin-top:-6px">Drama Queen: choose up to TWO options, then press Submit.</p>' : ''}
+  ${q.opts.map((o, i) => `<button class="opt" data-p="ans:${i}" type="button" dir="auto">${esc(o)}</button>`).join('')}
+  ${q.dr ? '<button class="btn block" data-p="sub" type="button" disabled id="subBtn">Submit</button>' : ''}
+  ${q.sw ? '<button class="btn ghost block" data-p="swap" type="button" id="swapBtn" style="margin-top:8px">🔄 Swap this question (once)</button>' : ''}`;
+  qTick = setInterval(() => {
+    const left = Math.max(0, q.ms - (Date.now() - q.at)), qt = $('qt'), qb = $('qb'); if (!qt) return clearInterval(qTick);
+    qt.textContent = Math.ceil(left / 1000); qb.style.transform = `scaleX(${left / q.ms})`;
+    if (left <= 0) { clearInterval(qTick); sh.querySelectorAll('.opt,#subBtn,#swapBtn').forEach(b => { b.disabled = true; }); }
+  }, 150);
+}
+function playerClick(e) {
+  const b = e.target.closest('[data-p]'); if (!b || role !== 'player') return;
+  const [k, v] = b.dataset.p.split(':');
+  if (k === 'reveal') { roleShown = true; return paint(); }
+  if (!PS) return;
+  const st = PS, a = st.act, mine = st.pl.find(p => p.i === me.pid);
+  if (k === 'bps') { if (bpSel.has(v)) bpSel.delete(v); else if (bpSel.size < 2) bpSel.add(v); return paint(); }
+  if (k === 'conf' && st.ph === 'abil') { net.send({ f: me.pid, t: 'conf', d: { w: [...bpSel] } }); buzz(15); b.disabled = true; return; }
+  if (k === 'rc' && st.ph === 'role') { net.send({ f: me.pid, t: 'conf' }); roleShown = false; buzz(15); b.disabled = true; return; }
+  if (k === 'use' && !a && st.turn === me.pid) { buzz(15); net.send({ f: me.pid, t: 'use', d: { tid: st.tid, ab: v || null } }); }
+  if (k === 'roll' && a && a.st === 'c' && a.pid === me.pid) { buzz(25); b.disabled = true; net.send({ f: me.pid, t: 'roll', d: { aid: a.aid } }); }
+  if (k === 'jp' && a && a.st === 'j') { jDone = a.aid; if (v !== 's') net.send({ f: me.pid, t: 'jp', d: { aid: a.aid, g: v } }); paint(); }
+  if (k === 'bp') { net.send({ f: me.pid, t: 'bp' }); b.disabled = true; }
+  if (k === 'swap' && a && a.st === 'q' && qmsg && qmsg.aid === a.aid) { b.disabled = true; net.send({ f: me.pid, t: 'swap', d: { aid: a.aid } }); }
+  if (k === 'ans' && a && a.st === 'q' && qmsg && qmsg.aid === a.aid && qmsg.pick < 0) {
+    const i = +v;
+    if (qmsg.dr) {
+      const at = qmsg.picks.indexOf(i);
+      if (at >= 0) qmsg.picks.splice(at, 1); else if (qmsg.picks.length < 2) qmsg.picks.push(i);
+      $('psheet').querySelectorAll('.opt').forEach((x, n) => x.classList.toggle('pick', qmsg.picks.includes(n)));
+      const sb = $('subBtn'); if (sb) sb.disabled = !qmsg.picks.length;
+      return;
+    }
+    qmsg.pick = i; b.classList.add('pick'); $('psheet').querySelectorAll('.opt,#swapBtn').forEach(x => { x.disabled = true; });
+    net.send({ f: me.pid, t: 'ans', d: { aid: a.aid, i } });
+  }
+  if (k === 'sub' && a && a.st === 'q' && qmsg && qmsg.aid === a.aid && qmsg.pick < 0 && qmsg.picks.length) {
+    qmsg.pick = qmsg.picks[0]; $('psheet').querySelectorAll('.opt,#subBtn,#swapBtn').forEach(x => { x.disabled = true; });
+    net.send({ f: me.pid, t: 'ans', d: { aid: a.aid, i: qmsg.picks[0], j: qmsg.picks.length > 1 ? qmsg.picks[1] : -1 } });
+  }
+}
+
+startScreen();
+</script>
+</body>
+</html>
